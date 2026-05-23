@@ -1,0 +1,1 @@
+*.tmp *.log bin/ obj/ .vs/ __pycache__/ 
