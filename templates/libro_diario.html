@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Libro Diario{% endblock %}
+
+{% block content %}
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-title">Libro Diario</span>
+    <span class="topbar-path">/ {{ periodo }} / {{ partidas|length }} asientos</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn"><i class="ti ti-printer"></i> Imprimir</button>
+    <button class="btn"><i class="ti ti-download"></i> Exportar</button>
+    <a href="/transacciones/nueva" class="btn btn-accent">
+      <i class="ti ti-plus"></i> Nuevo asiento
+    </a>
+  </div>
+</header>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="filter-group">
+    <button class="filter-btn active" data-filtro="todos">Todos</button>
+    <button class="filter-btn" data-filtro="normal">Normal</button>
+    <button class="filter-btn" data-filtro="regularizacion">Regularización</button>
+    <button class="filter-btn" data-filtro="cierre">Cierre</button>
+  </div>
+  <div class="search-box">
+    <i class="ti ti-search"></i>
+    <input type="text" placeholder="Buscar cuenta o concepto..." aria-label="Buscar en libro diario">
+  </div>
+</div>
+
+<!-- TABLA -->
+<div class="content">
+
+  <!-- CABECERA -->
+  <div class="tbl-head">
+    <div class="th">Fecha</div>
+    <div class="th">Partida</div>
+    <div class="th">Cuenta / Concepto</div>
+    <div class="th">Referencia</div>
+    <div class="th r">Debe (Q)</div>
+    <div class="th r">Haber (Q)</div>
+  </div>
+
+  <!-- ASIENTOS DESDE PYTHON -->
+  {% if partidas %}
+    {% for partida in partidas %}
+    <div class="asiento" data-tipo="{{ partida.tipo_partida|lower }}">
+
+      <!-- CABECERA DEL ASIENTO -->
+      <div class="asiento-header">
+        <div class="ah-cell num">
+          {{ partida.fecha.strftime('%d/%m') }}
+        </div>
+        <div class="ah-cell">
+          <span class="num-partida">#{{ '%03d'|format(partida.numero_partida) }}</span>
+        </div>
+        <div class="ah-cell" style="flex-direction:column; align-items:flex-start;">
+          <span class="concepto-text">{{ partida.concepto }}</span>
+          <span class="concepto-sub">{{ partida.tipo_partida }} · {{ partida.transaccion.documento_ref or '—' }}</span>
+        </div>
+        <div class="ah-cell num" style="color:var(--ink-3)">
+          {{ partida.transaccion.documento_ref or '—' }}
+        </div>
+        <div class="ah-cell num" style="justify-content:flex-end; font-weight:500;">
+          {{ '%.2f'|format(partida.detalles|sum(attribute='debe')) }}
+        </div>
+        <div class="ah-cell num" style="justify-content:flex-end; font-weight:500;">
+          {{ '%.2f'|format(partida.detalles|sum(attribute='haber')) }}
+        </div>
+      </div>
+
+      <!-- LÍNEAS DE LA PARTIDA -->
+      {% for detalle in partida.detalles %}
+      <div class="linea">
+        <div class="l-cell"></div>
+        <div class="l-cell"></div>
+
+        <div class="l-cell">
+          {% if detalle.debe > 0 %}
+          <div class="cuenta-debe">
+            <span class="tipo-indicator ind-debe">DEBE</span>
+            <span class="cuenta-codigo">{{ detalle.cuenta.codigo }}</span>
+            <span class="cuenta-nombre">{{ detalle.cuenta.nombre }}</span>
+          </div>
+          {% else %}
+          <div class="cuenta-haber">
+            <span class="tipo-indicator ind-haber">HABER</span>
+            <span class="cuenta-codigo">{{ detalle.cuenta.codigo }}</span>
+            <span class="cuenta-nombre">{{ detalle.cuenta.nombre }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="l-cell"></div>
+
+        <!-- DEBE -->
+        <div class="l-cell mono {% if detalle.debe > 0 %}monto-debe{% else %}monto-vacio{% endif %}"
+             data-monto="{{ detalle.debe }}">
+          {% if detalle.debe > 0 %}
+            {{ '%.2f'|format(detalle.debe) }}
+          {% else %}
+            —
+          {% endif %}
+        </div>
+
+        <!-- HABER -->
+        <div class="l-cell mono {% if detalle.haber > 0 %}monto-haber{% else %}monto-vacio{% endif %}"
+             data-monto="{{ detalle.haber }}">
+          {% if detalle.haber > 0 %}
+            {{ '%.2f'|format(detalle.haber) }}
+          {% else %}
+            —
+          {% endif %}
+        </div>
+
+      </div>
+      {% endfor %}
+
+      <!-- SUBTOTALES DEL ASIENTO -->
+      <div class="asiento-total">
+        <div class="at-cell at-label" style="grid-column:1/5; justify-content:flex-end;">
+          Subtotales
+        </div>
+        <div class="at-cell">
+          {{ '%.2f'|format(partida.detalles|sum(attribute='debe')) }}
+        </div>
+        <div class="at-cell">
+          {{ '%.2f'|format(partida.detalles|sum(attribute='haber')) }}
+        </div>
+      </div>
+
+    </div>
+    {% endfor %}
+
+  {% else %}
+  <!-- ESTADO VACÍO -->
+  <div style="padding: 48px 20px; text-align:center; color:var(--ink-3);">
+    <i class="ti ti-book-2" style="font-size:32px; display:block; margin-bottom:12px;"></i>
+    <div style="font-family:'Barlow',sans-serif; font-size:12px; letter-spacing:0.8px; text-transform:uppercase;">
+      No hay asientos en este período
+    </div>
+    <div style="font-size:11px; margin-top:6px;">
+      Registra la primera transacción para comenzar
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- FOOTER / CUADRE -->
+<footer class="tbl-footer">
+  <div class="totals-row">
+    <div class="total-item">
+      <span class="total-lbl">Total debe</span>
+      <span class="total-val" id="total-debe">0.00</span>
+    </div>
+    <div class="divider-v"></div>
+    <div class="total-item">
+      <span class="total-lbl">Total haber</span>
+      <span class="total-val" id="total-haber">0.00</span>
+    </div>
+    <div class="divider-v"></div>
+    <div class="total-item">
+      <span class="total-lbl">Diferencia</span>
+      <span class="total-val" id="diferencia">0.00</span>
+    </div>
+  </div>
+  <div class="cuadre-badge" id="badge-cuadre" role="status" aria-live="polite">
+    <div class="cuadre-dot"></div>
+    CALCULANDO...
+  </div>
+</footer>
+
+{% endblock %}

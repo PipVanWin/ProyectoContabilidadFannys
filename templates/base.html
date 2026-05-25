@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Fannys Express{% endblock %} — Sistema Contable</title>
+
+  <!-- Fuentes -->
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Iconos -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+
+  <!-- CSS propio -->
+  <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+
+  <div class="shell">
+
+    <!-- SIDEBAR -->
+    <aside class="sb">
+      <div class="sb-brand">
+        <div class="sb-mark">Fannys Express</div>
+        <div class="sb-sub">NIT 327527-J · Totonicapán</div>
+      </div>
+
+      <nav class="sb-section">
+        <div class="sb-label">Principal</div>
+        <a href="/" class="sb-item {% if active == 'dashboard' %}active{% endif %}">
+          <i class="ti ti-layout-dashboard"></i> Dashboard
+        </a>
+        <a href="/transacciones" class="sb-item {% if active == 'transacciones' %}active{% endif %}">
+          <i class="ti ti-receipt-2"></i> Transacciones
+        </a>
+        <a href="/inventario" class="sb-item {% if active == 'inventario' %}active{% endif %}">
+          <i class="ti ti-package"></i> Inventario
+        </a>
+      </nav>
+
+      <nav class="sb-section">
+        <div class="sb-label">Contabilidad</div>
+        <a href="/libro-diario" class="sb-item {% if active == 'diario' %}active{% endif %}">
+          <i class="ti ti-book-2"></i> Libro diario
+        </a>
+        <a href="/libro-mayor" class="sb-item {% if active == 'mayor' %}active{% endif %}">
+          <i class="ti ti-table"></i> Libro mayor
+        </a>
+        <a href="/estado-resultados" class="sb-item {% if active == 'resultados' %}active{% endif %}">
+          <i class="ti ti-chart-bar"></i> Estado de resultados
+        </a>
+      </nav>
+
+      <nav class="sb-section" style="margin-top:auto">
+        <a href="/cierre" class="sb-item {% if active == 'cierre' %}active{% endif %}">
+          <i class="ti ti-lock"></i> Cierre mensual
+        </a>
+      </nav>
+
+      <div class="sb-footer">
+        <div class="periodo-block">
+          <div class="periodo-lbl">Período activo</div>
+          <div class="periodo-val">{{ periodo or "—" }}</div>
+          <div class="estado-dot">{{ estado or "ABIERTO" }}</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CONTENIDO -->
+    <div class="main">
+      {% block content %}{% endblock %}
+    </div>
+
+  </div>
+
+  <script src="/static/js/main.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

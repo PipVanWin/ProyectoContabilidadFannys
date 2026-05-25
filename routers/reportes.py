@@ -3,45 +3,42 @@
 # libro diario, libro mayor y estado de resultados.
 # Usan las vistas SQL que ya están en ContabilidadGT.
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import text
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Request
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session, joinedload
 from database import get_db
-
+from models.models import PartidaDiaria, Transaccion, PeriodoContable, Empresa, DetallePartida
 router = APIRouter()
+from pathlib import Path
 
-@router.get("/libro-diario/{idperiodo}")
-def libro_diario(idperiodo: int, db: Session = Depends(get_db)):
-    """Retorna todas las partidas del libro diario del período."""
-    resultado = db.execute(
-        text("SELECT * FROM vw_LibroDiario WHERE mes = :mes"),
-        {"mes": idperiodo}
-    )
-    return resultado.mappings().all()
+BASE_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-@router.get("/libro-mayor/{idperiodo}")
-def libro_mayor(idperiodo: int, db: Session = Depends(get_db)):
-    """Retorna el saldo de cada cuenta contable del período."""
-    resultado = db.execute(
-        text("SELECT * FROM vw_LibroMayor WHERE idperiodo = :id"),
-        {"id": idperiodo}
-    )
-    return resultado.mappings().all()
+@router.get("/libro-diario")
+def libro_diario(request: Request, db: Session = Depends(get_db)):
+    empresa = db.query(Empresa).first()
+    periodo = db.query(PeriodoContable).filter_by(estado="ABIERTO").first()
 
-@router.get("/estado-resultados/{idperiodo}")
-def estado_resultados(idperiodo: int, db: Session = Depends(get_db)):
-    """Retorna ingresos y gastos del período para el estado de resultados."""
-    resultado = db.execute(
-        text("SELECT * FROM vw_EstadoResultados WHERE idperiodo = :id"),
-        {"id": idperiodo}
+    partidas = (
+        db.query(PartidaDiaria)
+        .join(Transaccion)
+        .filter(Transaccion.idperiodo == periodo.idperiodo)
+        .options(
+            joinedload(PartidaDiaria.detalles)
+            .joinedload(DetallePartida.cuenta),
+            joinedload(PartidaDiaria.transaccion)
+        )
+        .order_by(PartidaDiaria.numero_partida)
+        .all()
     )
-    return resultado.mappings().all()
 
-@router.get("/iva/{idperiodo}")
-def regularizacion_iva(idperiodo: int, db: Session = Depends(get_db)):
-    """Retorna el cálculo de IVA débito, crédito y neto a pagar."""
-    resultado = db.execute(
-        text("SELECT * FROM vw_RegularizacionIVA WHERE idperiodo = :id"),
-        {"id": idperiodo}
-    )
-    return resultado.mappings().all()
+    return templates.TemplateResponse(
+    request=request,
+    name="libro_diario.html",
+    context={
+        "partidas": partidas,
+        "periodo":  f"MAY-{periodo.anio}" if periodo else "—",
+        "estado":   periodo.estado if periodo else "—",
+        "active":   "diario",
+    }
+)
