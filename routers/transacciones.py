@@ -3,13 +3,22 @@
 # Cada transacción genera automáticamente su partida en el libro diario.
 # (La lógica de generación vive en services/contabilidad.py)
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import get_db
 from models.models import Transaccion, PeriodoContable
-from services.contabilidad import registrar_transaccion
+from pathlib import Path
 
 router = APIRouter()
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+@router.get("/nueva")
+def nueva_transaccion(request: Request, db: Session = Depends(get_db)):
+    # pendiente de implementar
+    pass
 
 @router.get("/{idperiodo}")
 def listar_transacciones(idperiodo: int, db: Session = Depends(get_db)):

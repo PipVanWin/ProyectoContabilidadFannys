@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Inventario{% endblock %}
+
+{% block content %}
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-title">Inventario</span>
+    <span class="topbar-path">/ {{ periodo }} / {{ total_items }} items</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn" onclick="document.getElementById('excel-input').click()">
+      <i class="ti ti-file-spreadsheet"></i> Importar Excel
+    </button>
+    <input type="file" id="excel-input" accept=".xlsx,.xls" style="display:none" onchange="importarExcel(this)">
+    <button class="btn btn-accent" onclick="abrirModal('nuevo')">
+      <i class="ti ti-plus"></i> Nuevo item
+    </button>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="toolbar">
+  <div class="filter-group">
+    <button class="filter-btn active" data-tab="productos" onclick="cambiarTab(this)">
+      Productos <span class="count-badge">{{ productos|length }}</span>
+    </button>
+    <button class="filter-btn" data-tab="insumos" onclick="cambiarTab(this)">
+      Insumos <span class="count-badge">{{ insumos|length }}</span>
+    </button>
+    <button class="filter-btn" data-tab="activos" onclick="cambiarTab(this)">
+      Activos fijos <span class="count-badge">{{ activos|length }}</span>
+    </button>
+  </div>
+  <div class="search-box">
+    <i class="ti ti-search"></i>
+    <input type="text" placeholder="Buscar en inventario..." id="search-inv">
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ── TAB PRODUCTOS ── -->
+  <div id="tab-productos" class="tab-content">
+    <div class="tbl-head" style="grid-template-columns: 80px 1fr 120px 110px 110px 100px 80px;">
+      <div class="th">Código</div>
+      <div class="th">Nombre</div>
+      <div class="th">Categoría</div>
+      <div class="th r">Costo (Q)</div>
+      <div class="th r">Precio venta (Q)</div>
+      <div class="th r">Existencia</div>
+      <div class="th"></div>
+    </div>
+
+    {% if productos %}
+      {% for p in productos %}
+      <div class="inv-row" data-nombre="{{ p.nombre|lower }}">
+        <div class="inv-grid" style="grid-template-columns: 80px 1fr 120px 110px 110px 100px 80px;">
+          <div class="l-cell mono" style="color:var(--ink-3)">{{ p.codigo or '—' }}</div>
+          <div class="l-cell" style="font-weight:500; color:var(--ink-0)">{{ p.nombre }}</div>
+          <div class="l-cell">
+            <span class="cat-tag">{{ p.categoria }}</span>
+          </div>
+          <div class="l-cell mono" style="justify-content:flex-end">{{ '%.2f'|format(p.costo_unitario) }}</div>
+          <div class="l-cell mono" style="justify-content:flex-end; color:var(--green)">{{ '%.2f'|format(p.precio_venta) }}</div>
+          <div class="l-cell mono" style="justify-content:flex-end">{{ p.cantidad }}</div>
+          <div class="l-cell" style="justify-content:flex-end; gap:4px;">
+            <button class="icon-btn" title="Editar"><i class="ti ti-pencil"></i></button>
+            <button class="icon-btn danger" title="Eliminar"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+  <i class="ti ti-package"></i>
+  <div class="empty-title">Sin productos registrados</div>
+  <div class="empty-sub">Importa un Excel o agrega productos manualmente</div>
+</div>
+    {% endif %}
+  </div>
+
+  <!-- ── TAB INSUMOS ── -->
+  <div id="tab-insumos" class="tab-content" style="display:none">
+    <div class="tbl-head" style="grid-template-columns: 80px 1fr 120px 100px 110px 110px 80px;">
+      <div class="th">Código</div>
+      <div class="th">Nombre</div>
+      <div class="th">Categoría</div>
+      <div class="th">Unidad</div>
+      <div class="th r">Costo unit. (Q)</div>
+      <div class="th r">Cantidad</div>
+      <div class="th"></div>
+    </div>
+
+    {% if insumos %}
+      {% for i in insumos %}
+      <div class="inv-row" data-nombre="{{ i.nombre|lower }}">
+        <div class="inv-grid" style="grid-template-columns: 80px 1fr 120px 100px 110px 110px 80px;">
+          <div class="l-cell mono" style="color:var(--ink-3)">{{ i.codigo or '—' }}</div>
+          <div class="l-cell" style="font-weight:500; color:var(--ink-0)">{{ i.nombre }}</div>
+          <div class="l-cell"><span class="cat-tag">{{ i.categoria }}</span></div>
+          <div class="l-cell mono">{{ i.unidad }}</div>
+          <div class="l-cell mono" style="justify-content:flex-end">{{ '%.2f'|format(i.costo_unitario) }}</div>
+          <div class="l-cell mono" style="justify-content:flex-end">{{ i.cantidad }}</div>
+          <div class="l-cell" style="justify-content:flex-end; gap:4px;">
+            <button class="icon-btn" title="Editar"><i class="ti ti-pencil"></i></button>
+            <button class="icon-btn danger" title="Eliminar"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+  <i class="ti ti-plant"></i>
+  <div class="empty-title">Sin insumos registrados</div>
+  <div class="empty-sub">Importa un Excel o agrega insumos manualmente</div>
+</div>
+    {% endif %}
+  </div>
+
+  <!-- ── TAB ACTIVOS FIJOS ── -->
+  <div id="tab-activos" class="tab-content" style="display:none">
+    <div class="tbl-head" style="grid-template-columns: 1fr 120px 130px 130px 100px 80px;">
+      <div class="th">Nombre</div>
+      <div class="th">Tipo</div>
+      <div class="th r">Valor compra (Q)</div>
+      <div class="th r">Deprec. acum. (Q)</div>
+      <div class="th">Adquisición</div>
+      <div class="th"></div>
+    </div>
+
+    {% if activos %}
+      {% for a in activos %}
+      <div class="inv-row" data-nombre="{{ a.nombre|lower }}">
+        <div class="inv-grid" style="grid-template-columns: 1fr 120px 130px 130px 100px 80px;">
+          <div class="l-cell" style="font-weight:500; color:var(--ink-0)">{{ a.nombre }}</div>
+          <div class="l-cell"><span class="cat-tag">{{ a.tipo }}</span></div>
+          <div class="l-cell mono" style="justify-content:flex-end">{{ '%.2f'|format(a.valor_compra) }}</div>
+          <div class="l-cell mono" style="justify-content:flex-end; color:var(--red)">{{ '%.2f'|format(a.depreciacion_acumulada) }}</div>
+          <div class="l-cell mono" style="color:var(--ink-3)">{{ a.fecha_adquisicion.strftime('%d/%m/%Y') }}</div>
+          <div class="l-cell" style="justify-content:flex-end; gap:4px;">
+            <button class="icon-btn" title="Editar"><i class="ti ti-pencil"></i></button>
+            <button class="icon-btn danger" title="Eliminar"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-state">
+  <i class="ti ti-building"></i>
+  <div class="empty-title">Sin activos fijos registrados</div>
+  <div class="empty-sub">Agrega terrenos, vehículos, mobiliario y equipo</div>
+</div>
+    {% endif %}
+  </div>
+
+</div>
+
+<!-- ── MODAL NUEVO ITEM ── -->
+<div id="modal-overlay" style="display:none" onclick="cerrarModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">Nuevo item</span>
+      <button class="icon-btn" onclick="cerrarModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="modal-body">
+
+      <div class="form-row">
+        <label class="form-label">Tipo</label>
+        <div class="filter-group" style="width:100%">
+          <button class="filter-btn active" data-tipo="producto" onclick="seleccionarTipo(this)">Producto</button>
+          <button class="filter-btn" data-tipo="insumo" onclick="seleccionarTipo(this)">Insumo</button>
+          <button class="filter-btn" data-tipo="activo" onclick="seleccionarTipo(this)">Activo fijo</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label class="form-label">Nombre <span style="color:var(--red)">*</span></label>
+        <input class="form-input" type="text" id="f-nombre" placeholder="Ej: Caldo de res">
+      </div>
+
+      <div class="form-row-2">
+        <div>
+          <label class="form-label">Código</label>
+          <input class="form-input" type="text" id="f-codigo" placeholder="Ej: PROD-001">
+        </div>
+        <div>
+          <label class="form-label">Categoría</label>
+          <input class="form-input" type="text" id="f-categoria" placeholder="Ej: Platos fuertes">
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div>
+          <label class="form-label">Costo unitario (Q)</label>
+          <input class="form-input" type="number" id="f-costo" placeholder="0.00" step="0.01">
+        </div>
+        <div id="f-precio-wrap">
+          <label class="form-label">Precio de venta (Q)</label>
+          <input class="form-input" type="number" id="f-precio" placeholder="0.00" step="0.01">
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div id="f-cantidad-wrap">
+          <label class="form-label">Cantidad / Existencia</label>
+          <input class="form-input" type="number" id="f-cantidad" placeholder="0">
+        </div>
+        <div id="f-unidad-wrap">
+          <label class="form-label">Unidad</label>
+          <input class="form-input" type="text" id="f-unidad" placeholder="Ej: libras, unidades">
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn btn-accent" onclick="guardarItem()">
+        <i class="ti ti-check"></i> Guardar
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/inventario.js"></script>
+{% endblock %}
