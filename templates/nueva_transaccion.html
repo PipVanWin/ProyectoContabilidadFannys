@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Nueva Transacción{% endblock %}
+
+{% block content %}
+
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-title">Nueva Transacción</span>
+    <span class="topbar-path">/ {{ periodo }}</span>
+  </div>
+  <div class="topbar-actions">
+    <a href="/transacciones/" class="btn">
+      <i class="ti ti-arrow-left"></i> Volver
+    </a>
+  </div>
+</header>
+
+<div class="content" style="padding: 20px;">
+
+  <div style="max-width: 620px;">
+
+    <div class="panel" style="margin-bottom: 12px;">
+      <div class="panel-header">
+        <span class="panel-title">Datos de la transacción</span>
+      </div>
+      <div class="modal-body">
+
+        <div class="form-row">
+          <label class="form-label">Tipo <span style="color:var(--red)">*</span></label>
+          <div class="filter-group" style="width:100%">
+            <button class="filter-btn active" data-tipo="VENTA"   onclick="selTipo(this)">Venta</button>
+            <button class="filter-btn"         data-tipo="COMPRA"  onclick="selTipo(this)">Compra</button>
+            <button class="filter-btn"         data-tipo="GASTO"   onclick="selTipo(this)">Gasto</button>
+            <button class="filter-btn"         data-tipo="PAGO"    onclick="selTipo(this)">Pago</button>
+            <button class="filter-btn"         data-tipo="COBRO"   onclick="selTipo(this)">Cobro</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Descripción <span style="color:var(--red)">*</span></label>
+          <input class="form-input" type="text" id="f-desc" placeholder="Ej: Venta almuerzo del día">
+        </div>
+
+        <div class="form-row-2">
+          <div>
+            <label class="form-label">Fecha <span style="color:var(--red)">*</span></label>
+            <input class="form-input" type="date" id="f-fecha">
+          </div>
+          <div>
+            <label class="form-label">Documento de referencia</label>
+            <input class="form-input" type="text" id="f-docref" placeholder="Ej: FAC-001">
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div>
+            <label class="form-label">Monto base (Q) <span style="color:var(--red)">*</span></label>
+            <input class="form-input" type="number" id="f-monto" placeholder="0.00" step="0.01" oninput="calcIVA()">
+          </div>
+          <div>
+            <label class="form-label">IVA 12% (Q)</label>
+            <input class="form-input" type="number" id="f-iva" placeholder="0.00" step="0.01" readonly style="background:var(--surface-2)">
+          </div>
+        </div>
+
+        <div class="form-row" id="wrap-cuenta-gasto" style="display:none">
+          <label class="form-label">Cuenta de gasto <span style="color:var(--red)">*</span></label>
+          <select class="form-input" id="f-cuenta-gasto">
+            <option value="">Seleccionar cuenta...</option>
+          </select>
+        </div>
+
+        <div style="background:var(--amber-bg); border:1px solid #E8C090; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+          <span style="font-size:11px; font-family:'Barlow',sans-serif; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--amber)">Total con IVA</span>
+          <span style="font-family:'IBM Plex Mono',monospace; font-size:16px; font-weight:500; color:var(--amber)" id="f-total">Q 0.00</span>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:8px;">
+      <a href="/transacciones/" class="btn">Cancelar</a>
+      <button class="btn btn-accent" onclick="guardar()">
+        <i class="ti ti-check"></i> Registrar transacción
+      </button>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const IDPERIODO = {{ idperiodo | int }};
+
+// Fecha de hoy por defecto
+document.getElementById('f-fecha').value = new Date().toISOString().split('T')[0];
+
+function selTipo(btn) {
+  document.querySelectorAll('.filter-btn[data-tipo]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const tipo = btn.dataset.tipo;
+  document.getElementById('wrap-cuenta-gasto').style.display = tipo === 'GASTO' ? '' : 'none';
+  calcIVA();
+}
+
+function calcIVA() {
+  const tipo = document.querySelector('.filter-btn[data-tipo].active')?.dataset.tipo;
+  const monto = parseFloat(document.getElementById('f-monto').value) || 0;
+  const conIVA = ['VENTA','COMPRA','GASTO'].includes(tipo);
+  const iva = conIVA ? Math.round(monto * 0.12 * 100) / 100 : 0;
+  document.getElementById('f-iva').value = iva.toFixed(2);
+  document.getElementById('f-total').textContent = 'Q ' + (monto + iva).toFixed(2);
+}
+
+// Cargar cuentas de gasto
+fetch('/transacciones/cuentas/gasto')
+  .then(r => r.json())
+  .then(cuentas => {
+    const sel = document.getElementById('f-cuenta-gasto');
+    cuentas.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.codigo + ' — ' + c.nombre;
+      sel.appendChild(opt);
+    });
+  });
+
+async function guardar() {
+  const tipo  = document.querySelector('.filter-btn[data-tipo].active')?.dataset.tipo;
+  const desc  = document.getElementById('f-desc').value.trim();
+  const fecha = document.getElementById('f-fecha').value;
+  const monto = parseFloat(document.getElementById('f-monto').value) || 0;
+  const iva   = parseFloat(document.getElementById('f-iva').value) || 0;
+  const docref= document.getElementById('f-docref').value.trim();
+  const cuentaGasto = document.getElementById('f-cuenta-gasto').value;
+
+  if (!desc) { alert('La descripción es obligatoria'); return; }
+  if (!monto) { alert('El monto es obligatorio'); return; }
+  if (tipo === 'GASTO' && !cuentaGasto) { alert('Selecciona la cuenta de gasto'); return; }
+
+  const body = {
+    idperiodo:      IDPERIODO,
+    fecha:          fecha,
+    tipo:           tipo,
+    descripcion:    desc,
+    monto_base:     monto,
+    iva:            iva,
+    documento_ref:  docref || null,
+    id_cuenta_gasto: cuentaGasto ? parseInt(cuentaGasto) : null,
+  };
+
+  const res = await fetch('/transacciones/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  const data = await res.json();
+
+  if (res.ok && data.ok) {
+    alert('✓ Transacción registrada correctamente');
+    window.location.href = '/transacciones/';
+  } else {
+    alert('Error: ' + (data.detail || 'Intenta de nuevo'));
+  }
+}
+
+// Cargar catálogo completo de cuentas
+fetch('/empresa/cuentas')
+  .then(r => r.json())
+  .then(cuentas => {
+    const lista = document.getElementById('lista-cuentas');
+    cuentas.forEach(c => {
+      lista.innerHTML += `
+        <div class="inv-grid" style="grid-template-columns: 80px 1fr 120px; padding: 0 20px; border-bottom: 1px solid var(--line);">
+          <div class="l-cell mono" style="color:var(--amber)">${c.codigo}</div>
+          <div class="l-cell" style="padding-left:${(c.nivel-1)*12}px">${c.nombre}</div>
+          <div class="l-cell"><span class="cat-tag">${c.tipo}</span></div>
+        </div>`;
+    });
+  });
+
+function toggleCatalogo() {
+  const el = document.getElementById('catalogo-cuentas');
+  el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+</script>
+{% endblock %}

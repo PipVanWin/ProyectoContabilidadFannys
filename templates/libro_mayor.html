@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block title %}Libro Mayor{% endblock %}
+
+{% block content %}
+
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-title">Libro Mayor</span>
+    <span class="topbar-path">/ {{ periodo }} / {{ cuentas|length }} cuentas mayorizadas</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn"><i class="ti ti-printer"></i> Imprimir</button>
+    <button class="btn"><i class="ti ti-download"></i> Exportar</button>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="filter-group">
+    <button class="filter-btn active" data-filtro="todas">Todas</button>
+    <button class="filter-btn" data-filtro="activo">Activo</button>
+    <button class="filter-btn" data-filtro="pasivo">Pasivo</button>
+    <button class="filter-btn" data-filtro="patrimonio">Patrimonio</button>
+  </div>
+  <div class="search-box">
+    <i class="ti ti-search"></i>
+    <input type="text" placeholder="Buscar cuenta por código o nombre..." aria-label="Buscar en libro mayor">
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="tbl-head">
+    <div class="th">Código</div>
+    <div class="th">Cuenta Contable</div>
+    <div class="th">Tipo de Cuenta</div>
+    <div class="th r">Total Debe (Q)</div>
+    <div class="th r">Total Haber (Q)</div>
+    <div class="th r">Saldo Neto (Q)</div>
+  </div>
+
+  {% if cuentas %}
+    {% for cuenta in cuentas %}
+    <div class="asiento" data-tipo="{{ cuenta.tipo|lower }}" style="margin-bottom: 4px;">
+      <div class="asiento-header" style="background: transparent; border: none; padding: 12px 0;">
+        
+        <div class="ah-cell num" style="font-weight: 600; color: var(--ink-1);">
+          {{ cuenta.codigo }}
+        </div>
+        
+        <div class="ah-cell" style="font-weight: 500;">
+          {{ cuenta.nombre }}
+        </div>
+        
+        <div class="ah-cell">
+          <span class="concepto-sub" style="text-transform: uppercase; letter-spacing: 0.5px;">
+            {{ cuenta.tipo }}
+          </span>
+        </div>
+        
+        <div class="ah-cell num mono" style="justify-content: flex-end;">
+          {% if cuenta.debe > 0 %}
+            {{ '%.2f'|format(cuenta.debe) }}
+          {% else %}
+            0.00
+          {% endif %}
+        </div>
+        
+        <div class="ah-cell num mono" style="justify-content: flex-end;">
+          {% if cuenta.haber > 0 %}
+            {{ '%.2f'|format(cuenta.haber) }}
+          {% else %}
+            0.00
+          {% endif %}
+        </div>
+        
+        <div class="ah-cell num mono" style="justify-content: flex-end; font-weight: 700; color: var(--accent, #000);">
+          {{ '%.2f'|format(cuenta.saldo) }}
+        </div>
+
+      </div>
+    </div>
+    {% endfor %}
+
+  {% else %}
+  <div style="padding: 48px 20px; text-align: center; color: var(--ink-3);">
+    <i class="ti ti-book-2" style="font-size: 32px; display: block; margin-bottom: 12px;"></i>
+    <div style="font-family: 'Barlow', sans-serif; font-size: 12px; letter-spacing: 0.8px; text-transform: uppercase;">
+      No hay cuentas mayorizadas para este período
+    </div>
+    <div style="font-size: 11px; margin-top: 6px;">
+      Asegúrate de tener partidas guardadas en el Libro Diario para procesar los saldos.
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<footer class="tbl-footer">
+  <div class="totals-row">
+    <div class="total-item">
+      <span class="total-lbl">Cuentas con Movimiento</span>
+      <span class="total-val">{{ cuentas|length }}</span>
+    </div>
+    <div class="divider-v"></div>
+    <div class="total-item">
+      <span class="total-lbl">Suma Total Debe</span>
+      <span class="total-val">
+        {{ '%.2f'|format(cuentas|sum(attribute='debe')) }}
+      </span>
+    </div>
+    <div class="divider-v"></div>
+    <div class="total-item">
+      <span class="total-lbl">Suma Total Haber</span>
+      <span class="total-val">
+        {{ '%.2f'|format(cuentas|sum(attribute='haber')) }}
+      </span>
+    </div>
+  </div>
+  
+  {# Validación rápida de partida doble en el mayorizado general #}
+  {% if cuentas|sum(attribute='debe') == cuentas|sum(attribute='haber') %}
+  <div class="cuadre-badge" id="badge-cuadre" style="background: rgba(16, 185, 129, 0.1); color: rgb(16, 185, 129);">
+    <div class="cuadre-dot" style="background: rgb(16, 185, 129);"></div>
+    MAYOR CUADRADO
+  </div>
+  {% else %}
+  <div class="cuadre-badge" id="badge-cuadre" style="background: rgba(239, 68, 68, 0.1); color: rgb(239, 68, 68);">
+    <div class="cuadre-dot" style="background: rgb(239, 68, 68);"></div>
+    DESCUADRADO
+  </div>
+  {% endif %}
+</footer>
+
+{% endblock %}

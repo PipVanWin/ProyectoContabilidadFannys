@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Transacciones{% endblock %}
+
+{% block content %}
+
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-title">Transacciones</span>
+    <span class="topbar-path">/ {{ periodo }} / {{ transacciones|length }} operaciones</span>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn"><i class="ti ti-printer"></i> Imprimir</button>
+    <a href="/transacciones/nueva" class="btn btn-accent">
+      <i class="ti ti-plus"></i> Nueva transacción
+    </a>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="filter-group">
+    <button class="filter-btn active" data-filtro="todos" onclick="filtrar(this)">Todas</button>
+    <button class="filter-btn" data-filtro="VENTA" onclick="filtrar(this)">Ventas</button>
+    <button class="filter-btn" data-filtro="COMPRA" onclick="filtrar(this)">Compras</button>
+    <button class="filter-btn" data-filtro="GASTO" onclick="filtrar(this)">Gastos</button>
+    <button class="filter-btn" data-filtro="PAGO" onclick="filtrar(this)">Pagos</button>
+  </div>
+  <div class="search-box">
+    <i class="ti ti-search"></i>
+    <input type="text" id="search-tx" placeholder="Buscar transacción...">
+  </div>
+</div>
+
+<div class="content">
+
+  <div class="tbl-head" style="grid-template-columns: 90px 70px 1fr 110px 110px 110px 80px;">
+    <div class="th">Fecha</div>
+    <div class="th">Tipo</div>
+    <div class="th">Descripción</div>
+    <div class="th r">Monto base (Q)</div>
+    <div class="th r">IVA (Q)</div>
+    <div class="th r">Total (Q)</div>
+    <div class="th">Ref.</div>
+  </div>
+
+  {% if transacciones %}
+    {% for tx in transacciones %}
+    <div class="inv-row" data-tipo="{{ tx.tipo }}" data-desc="{{ tx.descripcion|lower }}">
+      <div class="inv-grid" style="grid-template-columns: 90px 70px 1fr 110px 110px 110px 80px;">
+        <div class="l-cell mono" style="color:var(--ink-2)">
+          {{ tx.fecha.strftime('%d/%m/%Y') }}
+        </div>
+        <div class="l-cell">
+          <span class="tag
+            {% if tx.tipo == 'VENTA' %}tag-v
+            {% elif tx.tipo == 'COMPRA' %}tag-c
+            {% elif tx.tipo == 'GASTO' %}tag-g
+            {% else %}tag-p{% endif %}">
+            {{ tx.tipo }}
+          </span>
+        </div>
+        <div class="l-cell" style="color:var(--ink-0); font-weight:400">
+          {{ tx.descripcion }}
+        </div>
+        <div class="l-cell mono" style="justify-content:flex-end">
+          {{ '%.2f'|format(tx.monto_base) }}
+        </div>
+        <div class="l-cell mono" style="justify-content:flex-end; color:var(--ink-3)">
+          {{ '%.2f'|format(tx.iva) }}
+        </div>
+        <div class="l-cell mono {% if tx.tipo == 'VENTA' %}monto-debe{% else %}monto-haber{% endif %}" style="justify-content:flex-end; font-weight:500;">
+  {{ '%.2f'|format(tx.total) }}
+</div>
+          {{ tx.documento_ref or '—' }}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="empty-state">
+    <i class="ti ti-receipt-off"></i>
+    <div class="empty-title">Sin transacciones registradas</div>
+    <div class="empty-sub">Registra la primera operación del mes</div>
+  </div>
+  {% endif %}
+
+</div>
+
+<footer class="tbl-footer">
+  <div class="totals-row">
+    <div class="total-item">
+      <span class="total-lbl">Total ventas</span>
+      <span class="total-val" style="color:var(--green)">
+        Q {{ '%.2f'|format(transacciones|selectattr('tipo','eq','VENTA')|sum(attribute='total')) }}
+      </span>
+    </div>
+    <div class="divider-v"></div>
+    <div class="total-item">
+      <span class="total-lbl">Total gastos</span>
+      <span class="total-val" style="color:var(--red)">
+        Q {{ '%.2f'|format(transacciones|selectattr('tipo','in',['GASTO','COMPRA','PAGO'])|sum(attribute='total')) }}
+      </span>
+    </div>
+    <div class="divider-v"></div>
+    <div class="total-item">
+      <span class="total-lbl">Operaciones</span>
+      <span class="total-val">{{ transacciones|length }}</span>
+    </div>
+  </div>
+</footer>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filtrar(btn) {
+  document.querySelectorAll('.filter-btn[data-filtro]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const filtro = btn.dataset.filtro;
+  document.querySelectorAll('.inv-row').forEach(row => {
+    row.style.display = (filtro === 'todos' || row.dataset.tipo === filtro) ? '' : 'none';
+  });
+}
+
+document.getElementById('search-tx').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('.inv-row').forEach(row => {
+    row.style.display = row.dataset.desc.includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

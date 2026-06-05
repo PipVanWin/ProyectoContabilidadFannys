@@ -21,6 +21,16 @@ def listar_periodos(db: Session = Depends(get_db)):
     """Lista todos los períodos contables registrados."""
     return db.query(PeriodoContable).all()
 
+@router.get("/cuentas")
+def listar_cuentas(db: Session = Depends(get_db)):
+    from models.models import CuentaContable
+    cuentas = db.query(CuentaContable).order_by(CuentaContable.codigo).all()
+    return [
+        {"id": c.id, "codigo": c.codigo, "nombre": c.nombre, 
+         "tipo": c.tipo, "nivel": c.nivel}
+        for c in cuentas
+    ]
+
 @router.post("/periodos")
 def crear_periodo(mes: int, anio: int, db: Session = Depends(get_db)):
     """Abre un nuevo período contable para el mes y año indicados."""
