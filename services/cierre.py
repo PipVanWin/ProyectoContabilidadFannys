@@ -118,7 +118,7 @@ def ejecutar_cierre_mensual(periodo: PeriodoContable, db: Session):
     _linea(db, partida_gas, "3.1.2", debe=total_gastos)   # Reduce Utilidad del Ejercicio
     resumen.append({"paso": 3, "concepto": "Cierre de gastos", "monto": total_gastos})
 
-    # ── Paso 4: Cierre a capital ─────────────────────────────────
+    # ── Paso 4: Cierre a capital 
     utilidad = round(ventas - total_gastos, 2)
     partida_cap = _crear_partida_cierre(
         db, idperiodo, "Traslado de resultado a capital", "CIERRE"
@@ -132,7 +132,7 @@ def ejecutar_cierre_mensual(periodo: PeriodoContable, db: Session):
         _linea(db, partida_cap, "3.1.3", haber=perdida)   # Pérdida del Ejercicio
     resumen.append({"paso": 4, "concepto": "Cierre a capital", "monto": utilidad})
 
-    # ── Marcar período como cerrado ──────────────────────────────
+    # ── Marcar período como cerrado 
     periodo.estado = "CERRADO"
     db.commit()
 

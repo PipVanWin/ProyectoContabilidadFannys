@@ -18,6 +18,21 @@
 
 <div class="content" style="padding: 20px;">
 
+    <div class="panel" style="margin-bottom: 12px;">
+      <div class="panel-header">
+        <span class="panel-title">Catálogo de cuentas</span>
+        <span class="panel-link" onclick="toggleCatalogo()" style="cursor:pointer">Ver / ocultar</span>
+      </div>
+      <div id="catalogo-cuentas" style="display:none">
+        <div class="tbl-head" style="grid-template-columns: 80px 1fr 120px; top:unset;">
+          <div class="th">Código</div>
+          <div class="th">Nombre</div>
+          <div class="th">Tipo</div>
+        </div>
+        <div id="lista-cuentas"></div>
+      </div>
+    </div>
+
   <div style="max-width: 620px;">
 
     <div class="panel" style="margin-bottom: 12px;">

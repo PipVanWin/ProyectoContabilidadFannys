@@ -41,6 +41,7 @@
     <div class="th r">IVA (Q)</div>
     <div class="th r">Total (Q)</div>
     <div class="th">Ref.</div>
+    <div class="th"></div>
   </div>
 
   {% if transacciones %}
@@ -74,9 +75,6 @@
         <div class="l-cell mono" style="color:var(--ink-3); font-size:10px">
           {{ tx.documento_ref or '—' }}
         </div>
-        <div class="l-cell mono" style="color:var(--ink-2)">
-          {{ tx.fecha.strftime('%d/%m/%Y') }}
-        </div>
         <div class="l-cell" style="justify-content:flex-end;">
           <button class="icon-btn danger" title="Anular"
             onclick="anular({{ tx.idtransaccion }}, this.dataset.desc)"
@@ -84,7 +82,6 @@
             <i class="ti ti-trash"></i>
           </button>
         </div>
-      </div>
       </div>
     </div>
     {% endfor %}
@@ -174,6 +171,31 @@ async function anular(id, desc) {
   } else {
     alert('Error: ' + (data.detail || 'Intenta de nuevo'));
   }
+}
+
+function toggleCatalogo() {
+  const el = document.getElementById('catalogo-cuentas');
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    cargarCuentas();
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+async function cargarCuentas() {
+  const lista = document.getElementById('lista-cuentas');
+  if (lista.dataset.cargado) return; // no recargar si ya están
+  const res = await fetch('/cuentas/');
+  const cuentas = await res.json();
+  lista.innerHTML = cuentas.map(c => `
+    <div class="inv-grid" style="grid-template-columns: 80px 1fr 120px;">
+      <div class="l-cell mono" style="font-size:11px">${c.codigo}</div>
+      <div class="l-cell" style="font-size:11px">${c.nombre}</div>
+      <div class="l-cell" style="font-size:11px; color:var(--ink-3)">${c.tipo}</div>
+    </div>
+  `).join('');
+  lista.dataset.cargado = '1';
 }
 
 </script>

@@ -12,8 +12,27 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.models import PeriodoContable
 from services.cierre import ejecutar_cierre_mensual
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
 
 router = APIRouter()
+BASE_DIR  = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+@router.get("/")
+def cierre_page(request: Request, db: Session = Depends(get_db)):
+    periodo = db.query(PeriodoContable).filter_by(estado="ABIERTO").first()
+    return templates.TemplateResponse(
+        request=request,
+        name="cierre.html",
+        context={
+            "periodo": f"MAY-{periodo.anio}" if periodo else "—",
+            "estado": periodo.estado if periodo else "—",
+            "idperiodo": periodo.idperiodo if periodo else None,
+            "active": "cierre",
+        }
+    )
 
 @router.post("/{idperiodo}")
 def cerrar_periodo(idperiodo: int, db: Session = Depends(get_db)):

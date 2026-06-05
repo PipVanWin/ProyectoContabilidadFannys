@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Cierre Mensual{% endblock %}
+
+{% block content %}
+
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-title">Cierre Mensual</span>
+    <span class="topbar-path">/ {{ periodo }}</span>
+  </div>
+</header>
+
+<div class="content" style="padding: 20px;">
+  <div style="max-width: 620px;">
+
+    <!-- ESTADO DEL PERÍODO -->
+    <div class="panel" style="margin-bottom: 12px;">
+      <div class="panel-header">
+        <span class="panel-title">Estado del período</span>
+        <span class="estado-dot">{{ estado }}</span>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:13px; color:var(--ink-2); margin:0 0 8px;">
+          El cierre mensual ejecuta 4 pasos automáticamente:
+        </p>
+        <div style="display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--ink-2);">
+          <div><span style="color:var(--amber); font-weight:600;">Paso 1</span> — Regularización del IVA</div>
+          <div><span style="color:var(--amber); font-weight:600;">Paso 2</span> — Cierre de ingresos</div>
+          <div><span style="color:var(--amber); font-weight:600;">Paso 3</span> — Cierre de gastos</div>
+          <div><span style="color:var(--amber); font-weight:600;">Paso 4</span> — Traslado a capital</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULTADO (oculto hasta ejecutar) -->
+    <div id="resultado" style="display:none;" class="panel" style="margin-bottom:12px;">
+      <div class="panel-header">
+        <span class="panel-title">Resultado del cierre</span>
+      </div>
+      <div class="modal-body" id="resultado-body"></div>
+    </div>
+
+    <!-- BOTÓN -->
+    {% if estado == "ABIERTO" %}
+    <div style="display:flex; justify-content:flex-end;">
+      <button class="btn btn-accent" onclick="ejecutarCierre()" id="btn-cierre">
+        <i class="ti ti-lock"></i> Ejecutar cierre
+      </button>
+    </div>
+    {% else %}
+    <div style="padding:12px; background:var(--surface-2); border:1px solid var(--line); font-size:12px; color:var(--ink-3); text-align:center;">
+      Este período ya está cerrado.
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const IDPERIODO = {{ idperiodo or 'null' }};
+
+async function ejecutarCierre() {
+  if (!IDPERIODO) { alert('No hay período activo'); return; }
+  if (!confirm('¿Confirmas el cierre del período? Esta acción no se puede deshacer.')) return;
+
+  const btn = document.getElementById('btn-cierre');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="ti ti-loader"></i> Procesando...';
+
+  const res = await fetch(`/cierre/${IDPERIODO}`, { method: 'POST' });
+  const data = await res.json();
+
+  if (res.ok) {
+    const body = document.getElementById('resultado-body');
+    body.innerHTML = data.resumen.map(p => `
+      <div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:12px;">
+        <span><strong style="color:var(--amber)">Paso ${p.paso}</strong> — ${p.concepto}</span>
+        <span class="mono">Q ${parseFloat(p.monto).toFixed(2)}</span>
+      </div>
+    `).join('') + `
+      <div style="display:flex; justify-content:space-between; padding:10px 0 0; font-size:13px; font-weight:600;">
+        <span>Utilidad neta</span>
+        <span class="mono" style="color:${data.utilidad_neta >= 0 ? 'var(--green)' : 'var(--red)'}">
+          Q ${parseFloat(data.utilidad_neta).toFixed(2)}
+        </span>
+      </div>
+    `;
+    document.getElementById('resultado').style.display = '';
+    btn.innerHTML = '<i class="ti ti-check"></i> Período cerrado';
+  } else {
+    alert('Error: ' + (data.detail || 'Intenta de nuevo'));
+    btn.disabled = false;
+    btn.innerHTML = '<i class="ti ti-lock"></i> Ejecutar cierre';
+  }
+}
+</script>
+{% endblock %}
