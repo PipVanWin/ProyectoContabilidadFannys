@@ -5,3 +5,11 @@ sqlalchemy==2.0.30
 jinja2==3.1.4
 python-dotenv==1.0.1
 pydantic==2.7.1
+fastapi
+uvicorn[standard]
+sqlalchemy
+pyodbc
+jinja2
+python-multipart
+openpyxl
+python-dotenv

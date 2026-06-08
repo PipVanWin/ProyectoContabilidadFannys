@@ -130,12 +130,9 @@ class TransaccionService:
             cls._agregar_linea(db, partida, cuenta_dinero, haber=total)
 
         elif data.tipo == "COBRO":
-            if cuenta_pagocobro:
-                cxc = cls._obtener_cuenta(db, cuenta_pagocobro)
-        else:
-            cxc = cls._obtener_cuenta(db, "1.1.3")
-        cls._agregar_linea(db, partida, cxc,           debe=total)
-        cls._agregar_linea(db, partida, cuenta_dinero, haber=total)
+            cxc = cls._obtener_cuenta(db, cuenta_pagocobro) if cuenta_pagocobro else cls._obtener_cuenta(db, "1.1.3")
+            cls._agregar_linea(db, partida, cxc,           debe=total)
+            cls._agregar_linea(db, partida, cuenta_dinero, haber=total)
 
         db.commit()
         db.refresh(tx)

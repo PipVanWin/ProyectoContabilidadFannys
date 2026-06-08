@@ -18,9 +18,31 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, text
 from models.models import (
     PeriodoContable, Transaccion, PartidaDiaria,
-    DetallePartida, CuentaContable, SaldoInicial
+    DetallePartida, CuentaContable, 
 )
-from services.contabilidad import _linea, _siguiente_numero_partida
+def _linea(db, partida, codigo, debe=0, haber=0):
+    from models.models import CuentaContable, DetallePartida
+    cuenta = db.query(CuentaContable).filter_by(codigo=codigo).first()
+    if not cuenta:
+        raise ValueError(f"Cuenta {codigo} no encontrada")
+    linea = DetallePartida(
+        idpartida = partida.idpartida,
+        idcuenta  = cuenta.id,
+        debe      = debe,
+        haber     = haber,
+    )
+    db.add(linea)
+
+def _siguiente_numero_partida(db, idperiodo):
+    from sqlalchemy import func
+    from models.models import PartidaDiaria, Transaccion
+    ultimo = (
+        db.query(func.max(PartidaDiaria.numero_partida))
+        .join(Transaccion)
+        .filter(Transaccion.idperiodo == idperiodo)
+        .scalar()
+    )
+    return (ultimo or 0) + 1
 from datetime import date
 
 

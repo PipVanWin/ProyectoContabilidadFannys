@@ -23,7 +23,6 @@ app = FastAPI(
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 # Archivos estáticos (CSS, JS) 
 # Todo lo que esté en /static/ se sirve directamente al navegador
