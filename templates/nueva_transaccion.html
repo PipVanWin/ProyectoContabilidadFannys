@@ -50,11 +50,42 @@
             <button class="filter-btn"         data-tipo="PAGO"    onclick="selTipo(this)">Pago</button>
             <button class="filter-btn"         data-tipo="COBRO"   onclick="selTipo(this)">Cobro</button>
           </div>
+
+                  <div class="form-row" id="wrap-forma-pago">
+          <label class="form-label">Forma de pago <span style="color:var(--red)">*</span></label>
+          <div class="filter-group" style="width:100%">
+            <button class="filter-btn active" data-forma="CAJA"    onclick="selForma(this)">Efectivo (Caja)</button>
+            <button class="filter-btn"         data-forma="BANCO"   onclick="selForma(this)">Banco</button>
+            <button class="filter-btn"         data-forma="CREDITO" onclick="selForma(this)">Crédito</button>
+          </div>
+        </div>
+
+          <div id="sugerencia-cuentas" style="margin-top:8px; padding:10px 12px; background:var(--surface-2); border:1px solid var(--line); font-size:11px; display:none;">
+          <div style="font-family:'Barlow',sans-serif; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--ink-3); margin-bottom:6px;">Cuentas que se afectarán</div>
+          <div id="lista-sugerencia" style="display:flex; flex-direction:column; gap:4px;"></div>
+        </div>
         </div>
 
         <div class="form-row">
           <label class="form-label">Descripción <span style="color:var(--red)">*</span></label>
           <input class="form-input" type="text" id="f-desc" placeholder="Ej: Venta almuerzo del día">
+        </div>
+
+        <div class="form-row" id="wrap-producto" style="display:none">
+          <label class="form-label">Producto</label>
+          <div style="position:relative;">
+            <input class="form-input" type="text" id="f-producto" 
+                   placeholder="Buscar producto del menú..." 
+                   autocomplete="off" oninput="filtrarProductos()">
+            <div id="dropdown-productos" style="display:none; position:absolute; z-index:100; width:100%; background:var(--surface-0); border:1px solid var(--line); max-height:200px; overflow-y:auto;"></div>
+          </div>
+        </div>
+
+        
+        <div class="form-row" id="wrap-cantidad" style="display:none">
+          <label class="form-label">Cantidad</label>
+          <input class="form-input" type="number" id="f-cantidad" 
+                 placeholder="1" min="1" step="1" oninput="calcMonto()">
         </div>
 
         <div class="form-row-2">
@@ -63,8 +94,11 @@
             <input class="form-input" type="date" id="f-fecha">
           </div>
           <div>
-            <label class="form-label">Documento de referencia</label>
-            <input class="form-input" type="text" id="f-docref" placeholder="Ej: FAC-001">
+            <label class="form-label">Cuenta de referencia</label>
+            <div style="position:relative;">
+              <input class="form-input" type="text" id="f-docref" placeholder="Buscar cuenta..." autocomplete="off" oninput="filtrarCuentas()">
+              <div id="dropdown-cuentas" style="display:none; position:absolute; z-index:100; width:100%; background:var(--surface-0); border:1px solid var(--line); max-height:180px; overflow-y:auto;"></div>
+            </div>
           </div>
         </div>
 
@@ -86,6 +120,13 @@
           </select>
         </div>
 
+        <div class="form-row" id="wrap-cuenta-pagocobro" style="display:none">
+          <label class="form-label">Cuenta <span style="color:var(--red)">*</span></label>
+          <select class="form-input" id="f-cuenta-pagocobro">
+            <option value="">Seleccionar cuenta...</option>
+          </select>
+        </div>
+
         <div style="background:var(--amber-bg); border:1px solid #E8C090; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
           <span style="font-size:11px; font-family:'Barlow',sans-serif; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--amber)">Total con IVA</span>
           <span style="font-family:'IBM Plex Mono',monospace; font-size:16px; font-weight:500; color:var(--amber)" id="f-total">Q 0.00</span>
@@ -101,6 +142,7 @@
       </button>
     </div>
 
+
   </div>
 </div>
 
@@ -111,18 +153,259 @@
 const IDPERIODO = {{ idperiodo | int }};
 
 // Fecha de hoy por defecto
-document.getElementById('f-fecha').value = new Date().toISOString().split('T')[0];
+fetch('/empresa/periodos')
+  .then(r => r.json())
+  .then(periodos => {
+    const abierto = periodos.find(p => p.estado === 'ABIERTO');
+    if (abierto) {
+      const fecha = new Date(abierto.anio, abierto.mes - 1, 1);
+      document.getElementById('f-fecha').value = fecha.toISOString().split('T')[0];
+    } else {
+      document.getElementById('f-fecha').value = new Date().toISOString().split('T')[0];
+    }
+  });
+
+// Cuentas sugeridas por tipo (para el dropdown y el panel)
+const CUENTAS_TIPO = {
+  VENTA:  ['1.1.1','4.1.1','2.1.2'],
+  COMPRA: ['1.1.4','1.1.5','2.1.1'],
+  GASTO:  ['1.1.5','1.1.1'],
+  PAGO:   ['2.1.1','1.1.1'],
+  COBRO:  ['1.1.1','1.1.3'],
+};
+
+const LADO_CUENTA = {
+  VENTA:  { '1.1.1':'DEBE',  '4.1.1':'HABER', '2.1.2':'HABER' },
+  COMPRA: { '1.1.4':'DEBE',  '1.1.5':'DEBE',  '2.1.1':'HABER' },
+  GASTO:  { '1.1.5':'DEBE',  '1.1.1':'HABER' },
+  PAGO:   { '2.1.1':'DEBE',  '1.1.1':'HABER' },
+  COBRO:  { '1.1.1':'DEBE',  '1.1.3':'HABER' },
+};
+
+let todasLasCuentas = [];
+let cuentaSeleccionada = null;
+let tipoActual = 'VENTA';
+
+// Cargar todas las cuentas al iniciar
+fetch('/empresa/cuentas')
+  .then(r => r.json())
+  .then(cuentas => {
+    todasLasCuentas = cuentas;
+    const lista = document.getElementById('lista-cuentas');
+    cuentas.forEach(c => {
+      lista.innerHTML += `
+        <div class="inv-grid" style="grid-template-columns: 80px 1fr 120px; padding: 0 20px; border-bottom: 1px solid var(--line);">
+          <div class="l-cell mono" style="color:var(--amber)">${c.codigo}</div>
+          <div class="l-cell" style="padding-left:${(c.nivel-1)*12}px">${c.nombre}</div>
+          <div class="l-cell"><span class="cat-tag">${c.tipo}</span></div>
+        </div>`;
+    });
+    // Mostrar sugerencias iniciales para VENTA
+    actualizarDropdown('');
+  });
+
+// Cuentas por forma de pago
+const CUENTA_FORMA = {
+  CAJA:    '1.1.1',
+  BANCO:   '1.1.2',
+  CREDITO_COBRAR: '1.1.3',  // para ventas a crédito
+  CREDITO_PAGAR:  '2.1.1',  // para compras/gastos a crédito
+};
+
+function selForma(btn) {
+  document.querySelectorAll('.filter-btn[data-forma]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  actualizarSugerencias();
+}
 
 function selTipo(btn) {
   document.querySelectorAll('.filter-btn[data-tipo]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   const tipo = btn.dataset.tipo;
+  tipoActual = tipo;
+  const forma = document.querySelector('.filter-btn[data-forma].active')?.dataset.forma;
+
+  // PAGO y COBRO no tienen crédito
+  if (tipo === 'PAGO' || tipo === 'COBRO') {
+    document.querySelectorAll('.filter-btn[data-forma="CREDITO"]').forEach(b => b.style.display = 'none');
+    if (forma === 'CREDITO') document.querySelector('.filter-btn[data-forma="CAJA"]').click();
+  } else {
+    document.querySelectorAll('.filter-btn[data-forma]').forEach(b => b.style.display = '');
+  }
+
+  // Buscador de productos: VENTA y COMPRA
+  if (tipo === 'VENTA' || tipo === 'COMPRA') {
+    document.getElementById('wrap-producto').style.display = '';
+    document.getElementById('f-producto').placeholder =
+      tipo === 'VENTA' ? 'Buscar producto del menú...' : 'Buscar insumo o material...';
+    cargarProductos(tipo);
+  } else {
+    document.getElementById('wrap-producto').style.display = 'none';
+  }
+
+  if (tipo === 'PAGO' || tipo === 'COBRO') {
+    document.getElementById('wrap-cuenta-pagocobro').style.display = '';
+    cargarCuentasPagoCobro(tipo);
+  } else {
+    document.getElementById('wrap-cuenta-pagocobro').style.display = 'none';
+  }
+
+  // Reset producto seleccionado
+  document.getElementById('wrap-cantidad').style.display = 'none';
+  productoSeleccionado = null;
+  document.getElementById('f-producto').value = '';
+
+  // Cuenta de gasto solo para GASTO
   document.getElementById('wrap-cuenta-gasto').style.display = tipo === 'GASTO' ? '' : 'none';
+
+  document.getElementById('f-docref').value = '';
+  cuentaSeleccionada = null;
+  actualizarSugerencias();
   calcIVA();
 }
 
-function calcIVA() {
+function actualizarSugerencias() {
+  const tipo = tipoActual;
+  const forma = document.querySelector('.filter-btn[data-forma].active')?.dataset.forma;
+  if (!tipo) return;
+
+  // Determinar cuenta de dinero según forma
+  let cuentaDinero;
+  if (forma === 'CAJA')    cuentaDinero = '1.1.1';
+  else if (forma === 'BANCO') cuentaDinero = '1.1.2';
+  else if (forma === 'CREDITO') {
+    // Crédito: si es venta → Cuentas por Cobrar; si es compra/gasto → Cuentas por Pagar
+    cuentaDinero = (tipo === 'VENTA') ? '1.1.3' : '2.1.1';
+  }
+
+  const SUGERENCIAS_DINAMICAS = {
+    VENTA:  [
+      { codigo: cuentaDinero, lado: 'DEBE'  },
+      { codigo: '4.1.1',      lado: 'HABER' },
+      { codigo: '2.1.2',      lado: 'HABER' },
+    ],
+    COMPRA: [
+      { codigo: '1.1.4',      lado: 'DEBE'  },
+      { codigo: '1.1.5',      lado: 'DEBE'  },
+      { codigo: cuentaDinero, lado: 'HABER' },
+    ],
+    GASTO: [
+      { codigo: '5.x.x',      lado: 'DEBE'  },
+      { codigo: '1.1.5',      lado: 'DEBE'  },
+      { codigo: cuentaDinero, lado: 'HABER' },
+    ],
+    PAGO: [
+      { codigo: '2.1.1',      lado: 'DEBE'  },
+      { codigo: cuentaDinero, lado: 'HABER' },
+    ],
+    COBRO: [
+      { codigo: '1.1.3',      lado: 'DEBE'  },  // siempre cobra de CxC
+      { codigo: cuentaDinero, lado: 'HABER' },
+    ],
+  };
+
+  const filas = (SUGERENCIAS_DINAMICAS[tipo] || []).map(s => {
+    const cuenta = todasLasCuentas.find(c => c.codigo === s.codigo);
+    return {
+      codigo: s.codigo,
+      nombre: cuenta ? cuenta.nombre : s.codigo === '5.x.x' ? 'Cuenta de gasto seleccionada' : '—',
+      lado: s.lado,
+    };
+  });
+
+  actualizarPanel(filas);
+  actualizarDropdown('');
+}
+function filtrarCuentas() {
+  const q = document.getElementById('f-docref').value.trim().toLowerCase();
+  cuentaSeleccionada = null;
+  actualizarDropdown(q);
+}
+
+function actualizarDropdown(q) {
   const tipo = document.querySelector('.filter-btn[data-tipo].active')?.dataset.tipo;
+  const codigosSugeridos = CUENTAS_TIPO[tipo] || [];
+
+  // Filtrar: primero las sugeridas, luego el resto
+  let resultado = todasLasCuentas.filter(c => c.nivel >= 2); // solo cuentas de detalle
+  if (q) {
+    resultado = resultado.filter(c =>
+      c.codigo.includes(q) || c.nombre.toLowerCase().includes(q)
+    );
+  } else {
+    // Sin búsqueda: mostrar solo las sugeridas para este tipo
+    resultado = resultado.filter(c => codigosSugeridos.includes(c.codigo));
+  }
+
+  const dropdown = document.getElementById('dropdown-cuentas');
+  if (!resultado.length) { dropdown.style.display = 'none'; return; }
+
+  dropdown.innerHTML = resultado.map(c => {
+    const esSugerida = codigosSugeridos.includes(c.codigo);
+    return `
+      <div onclick="seleccionarCuenta('${c.codigo}', '${c.nombre}')"
+           style="padding:7px 12px; cursor:pointer; display:flex; gap:8px; align-items:center;
+                  border-bottom:1px solid var(--line);
+                  background:${esSugerida ? 'var(--amber-bg)' : 'var(--surface-0)'};"
+           onmouseover="this.style.background='var(--surface-2)'"
+           onmouseout="this.style.background='${esSugerida ? 'var(--amber-bg)' : 'var(--surface-0)'}'">
+        <span style="font-family:'IBM Plex Mono',monospace; color:var(--amber); font-size:11px; min-width:44px;">${c.codigo}</span>
+        <span style="font-size:12px; color:var(--ink-1);">${c.nombre}</span>
+        ${esSugerida ? '<span style="margin-left:auto; font-size:10px; color:var(--amber);">sugerida</span>' : ''}
+      </div>`;
+  }).join('');
+  dropdown.style.display = '';
+}
+
+function seleccionarCuenta(codigo, nombre) {
+  cuentaSeleccionada = codigo;
+  document.getElementById('f-docref').value = codigo + ' — ' + nombre;
+  document.getElementById('dropdown-cuentas').style.display = 'none';
+
+  // Actualizar panel según la cuenta seleccionada
+  const tipo = document.querySelector('.filter-btn[data-tipo].active')?.dataset.tipo;
+  const lados = LADO_CUENTA[tipo] || {};
+  const codigosSugeridos = CUENTAS_TIPO[tipo] || [];
+
+  // Construir panel: la cuenta seleccionada + las demás sugeridas del tipo
+  const todas = [codigo, ...codigosSugeridos.filter(c => c !== codigo)];
+  const panel = todas.map(cod => {
+    const cuenta = todasLasCuentas.find(c => c.codigo === cod);
+    if (!cuenta) return null;
+    return { codigo: cod, nombre: cuenta.nombre, lado: lados[cod] || '—' };
+  }).filter(Boolean);
+
+  actualizarPanel(panel);
+}
+
+function actualizarPanel(cuentas) {
+  const lista = document.getElementById('lista-sugerencia');
+  const wrap  = document.getElementById('sugerencia-cuentas');
+  if (!cuentas.length) { wrap.style.display = 'none'; return; }
+
+  lista.innerHTML = cuentas.map(c => `
+    <div style="display:flex; align-items:center; gap:8px;">
+      <span style="font-family:'IBM Plex Mono',monospace; color:var(--amber); min-width:48px;">${c.codigo}</span>
+      <span style="color:var(--ink-1); flex:1">${c.nombre}</span>
+      <span style="padding:1px 6px; font-size:10px; font-family:'Barlow',sans-serif; font-weight:600; letter-spacing:0.5px;
+        background:${c.lado === 'DEBE' ? 'rgba(59,130,246,0.1)' : c.lado === 'HABER' ? 'rgba(34,197,94,0.1)' : 'transparent'};
+        color:${c.lado === 'DEBE' ? '#3B82F6' : c.lado === 'HABER' ? '#16A34A' : 'var(--ink-3)'};">
+        ${c.lado}
+      </span>
+    </div>
+  `).join('');
+  wrap.style.display = '';
+}
+
+// Cerrar dropdown al hacer click fuera
+document.addEventListener('click', e => {
+  if (!e.target.closest('#f-docref') && !e.target.closest('#dropdown-cuentas')) {
+    document.getElementById('dropdown-cuentas').style.display = 'none';
+  }
+});
+
+function calcIVA() {
+  const tipo = tipoActual;
   const monto = parseFloat(document.getElementById('f-monto').value) || 0;
   const conIVA = ['VENTA','COMPRA','GASTO'].includes(tipo);
   const iva = conIVA ? Math.round(monto * 0.12 * 100) / 100 : 0;
@@ -143,14 +426,19 @@ fetch('/transacciones/cuentas/gasto')
     });
   });
 
-async function guardar() {
-  const tipo  = document.querySelector('.filter-btn[data-tipo].active')?.dataset.tipo;
+async function guardar() { 
+  const tipo = tipoActual;
   const desc  = document.getElementById('f-desc').value.trim();
   const fecha = document.getElementById('f-fecha').value;
   const monto = parseFloat(document.getElementById('f-monto').value) || 0;
   const iva   = parseFloat(document.getElementById('f-iva').value) || 0;
   const docref= document.getElementById('f-docref').value.trim();
   const cuentaGasto = document.getElementById('f-cuenta-gasto').value;
+  const forma = document.querySelector('.filter-btn[data-forma].active')?.dataset.forma;
+  const cuentaPagoCobro = document.getElementById('f-cuenta-pagocobro').value;
+  if ((tipo === 'PAGO' || tipo === 'COBRO') && !cuentaPagoCobro) {
+    alert('Selecciona la cuenta'); return;
+  }
 
   if (!desc) { alert('La descripción es obligatoria'); return; }
   if (!monto) { alert('El monto es obligatorio'); return; }
@@ -163,8 +451,10 @@ async function guardar() {
     descripcion:    desc,
     monto_base:     monto,
     iva:            iva,
-    documento_ref:  docref || null,
+    documento_ref: cuentaSeleccionada ? cuentaSeleccionada.substring(0, 20) : (docref ? docref.substring(0, 20) : null),
     id_cuenta_gasto: cuentaGasto ? parseInt(cuentaGasto) : null,
+    id_cuenta_pagocobro: cuentaPagoCobro || null,
+    forma_pago: forma,
   };
 
   const res = await fetch('/transacciones/', {
@@ -201,6 +491,93 @@ fetch('/empresa/cuentas')
 function toggleCatalogo() {
   const el = document.getElementById('catalogo-cuentas');
   el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+let todosLosProductos = [];
+let productoSeleccionado = null;
+
+// Cargar productos al iniciar
+function cargarProductos(tipo) {
+  const endpoint = tipo === 'VENTA' ? '/inventario/productos/venta' : '/inventario/productos/compra';
+  fetch(endpoint)
+    .then(r => r.json())
+    .then(productos => { todosLosProductos = productos; });
+}
+
+function filtrarProductos() {
+  const q = document.getElementById('f-producto').value.toLowerCase();
+  productoSeleccionado = null;
+  const resultado = todosLosProductos.filter(p =>
+    p.nombre.toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q)
+  );
+  const dropdown = document.getElementById('dropdown-productos');
+  if (!resultado.length) { dropdown.style.display = 'none'; return; }
+  dropdown.innerHTML = resultado.map(p => `
+    <div onclick="seleccionarProducto(${p.id}, '${p.nombre.replace(/'/g,"\\'")}', ${p.precio_venta})"
+         style="padding:8px 12px; cursor:pointer; display:flex; gap:8px; align-items:center; border-bottom:1px solid var(--line);"
+         onmouseover="this.style.background='var(--surface-2)'"
+         onmouseout="this.style.background=''">
+      <span style="font-size:11px; color:var(--amber); min-width:60px;">${p.codigo || '—'}</span>
+      <span style="font-size:12px; flex:1">${p.nombre}</span>
+      <span style="font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--green)">Q${parseFloat(p.precio_venta).toFixed(2)}</span>
+    </div>
+  `).join('');
+  dropdown.style.display = '';
+}
+
+function seleccionarProducto(id, nombre, precio) {
+  productoSeleccionado = { id, nombre, precio };
+  const tipo = tipoActual;
+  document.getElementById('f-producto').value = nombre;
+  document.getElementById('dropdown-productos').style.display = 'none';
+  document.getElementById('wrap-cantidad').style.display = '';
+  document.getElementById('f-cantidad').value = 1;
+  document.getElementById('f-desc').value = tipo === 'VENTA' ? `Venta de ${nombre}` : `Compra de ${nombre}`;
+  document.getElementById('f-monto').value = parseFloat(precio).toFixed(2);
+  calcIVA();
+}
+
+function calcMonto() {
+  if (!productoSeleccionado) return;
+  const tipo = tipoActual;
+  const cantidad = parseInt(document.getElementById('f-cantidad').value) || 1;
+  const monto = productoSeleccionado.precio * cantidad;
+  document.getElementById('f-monto').value = monto.toFixed(2);
+  document.getElementById('f-desc').value = tipo === 'VENTA'
+    ? `Venta de ${cantidad}x ${productoSeleccionado.nombre}`
+    : `Compra de ${cantidad}x ${productoSeleccionado.nombre}`;
+  calcIVA();
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#f-producto') && !e.target.closest('#dropdown-productos')) {
+    document.getElementById('dropdown-productos').style.display = 'none';
+  }
+});
+
+const CUENTAS_PAGO = [
+  { codigo: '2.1.1', nombre: 'Cuentas por Pagar' },
+  { codigo: '2.1.2', nombre: 'IVA Débito Fiscal' },
+  { codigo: '2.1.3', nombre: 'IVA por Pagar' },
+  { codigo: '2.1.4', nombre: 'Sueldos por Pagar' },
+  { codigo: '2.1.5', nombre: 'IGSS por Pagar' },
+];
+
+const CUENTAS_COBRO = [
+  { codigo: '1.1.3', nombre: 'Cuentas por Cobrar' },
+  { codigo: '1.1.5', nombre: 'IVA Crédito Fiscal' },
+];
+
+function cargarCuentasPagoCobro(tipo) {
+  const sel = document.getElementById('f-cuenta-pagocobro');
+  sel.innerHTML = '<option value="">Seleccionar cuenta...</option>';
+  const lista = tipo === 'PAGO' ? CUENTAS_PAGO : CUENTAS_COBRO;
+  lista.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.codigo;
+    opt.textContent = c.codigo + ' — ' + c.nombre;
+    sel.appendChild(opt);
+  });
 }
 
 </script>

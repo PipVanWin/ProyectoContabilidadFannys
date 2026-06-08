@@ -16,9 +16,20 @@ router = APIRouter()
 BASE_DIR  = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio",
+         "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+
 @router.get("/")
 def transacciones_page(request: Request, db: Session = Depends(get_db)):
-    periodo = db.query(PeriodoContable).filter_by(estado="ABIERTO").first()
+    periodo = (
+    db.query(PeriodoContable)
+    .filter_by(estado="ABIERTO")
+    .first()
+) or (
+    db.query(PeriodoContable)
+    .order_by(PeriodoContable.anio.desc(), PeriodoContable.mes.desc())
+    .first()
+)
     txs = db.query(Transaccion).filter_by(
         idperiodo=periodo.idperiodo, anulada=False
     ).order_by(Transaccion.fecha).all() if periodo else []
@@ -27,7 +38,7 @@ def transacciones_page(request: Request, db: Session = Depends(get_db)):
         name="transacciones.html",
         context={
             "transacciones": txs,
-            "periodo": f"MAY-{periodo.anio}" if periodo else "—",
+            "periodo": f"{MESES[periodo.mes]}-{periodo.anio}" if periodo else "—",
             "estado": periodo.estado if periodo else "—",
             "active": "transacciones",
         }
@@ -35,12 +46,20 @@ def transacciones_page(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/nueva")
 def nueva_transaccion(request: Request, db: Session = Depends(get_db)):
-    periodo = db.query(PeriodoContable).filter_by(estado="ABIERTO").first()
+    periodo = (
+    db.query(PeriodoContable)
+    .filter_by(estado="ABIERTO")
+    .first()
+) or (
+    db.query(PeriodoContable)
+    .order_by(PeriodoContable.anio.desc(), PeriodoContable.mes.desc())
+    .first()
+)
     return templates.TemplateResponse(
         request=request,
         name="nueva_transaccion.html",
         context={
-            "periodo": f"MAY-{periodo.anio}" if periodo else "—",
+            "periodo": f"{MESES[periodo.mes]}-{periodo.anio}" if periodo else "—",
             "estado": periodo.estado if periodo else "—",
             "idperiodo": periodo.idperiodo if periodo else 1,
             "active": "transacciones",
@@ -100,8 +119,15 @@ def crear_transaccion(datos: dict, db: Session = Depends(get_db)):
             documento_ref = datos.get("documento_ref"),
             detalles      = datos.get("detalles", []),
         )
-        id_cuenta_gasto = datos.get("id_cuenta_gasto")
-        tx = TransaccionService.crear_transaccion(db, data, id_cuenta_gasto=id_cuenta_gasto)
+        id_cuenta_gasto  = datos.get("id_cuenta_gasto")
+        forma_pago       = datos.get("forma_pago", "CAJA")
+        cuenta_pagocobro = datos.get("id_cuenta_pagocobro")
+        tx = TransaccionService.crear_transaccion(
+            db, data,
+            id_cuenta_gasto=id_cuenta_gasto,
+            forma_pago=forma_pago,
+            cuenta_pagocobro=cuenta_pagocobro
+        )
         return {
             "ok":            True,
             "idtransaccion": tx.idtransaccion,
@@ -128,3 +154,4 @@ def anular_transaccion(idtransaccion: int, datos: dict, db: Session = Depends(ge
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    

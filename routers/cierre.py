@@ -20,14 +20,23 @@ router = APIRouter()
 BASE_DIR  = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio",
+         "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+
 @router.get("/")
 def cierre_page(request: Request, db: Session = Depends(get_db)):
-    periodo = db.query(PeriodoContable).filter_by(estado="ABIERTO").first()
+    periodo = (
+    db.query(PeriodoContable).filter_by(estado="ABIERTO").first()
+) or (
+    db.query(PeriodoContable)
+    .order_by(PeriodoContable.anio.desc(), PeriodoContable.mes.desc())
+    .first()
+)
     return templates.TemplateResponse(
         request=request,
         name="cierre.html",
         context={
-            "periodo": f"MAY-{periodo.anio}" if periodo else "—",
+            "periodo": f"{MESES[periodo.mes]}-{periodo.anio}" if periodo else "—",
             "estado": periodo.estado if periodo else "—",
             "idperiodo": periodo.idperiodo if periodo else None,
             "active": "cierre",

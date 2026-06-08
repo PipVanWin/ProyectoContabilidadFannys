@@ -40,66 +40,75 @@ class TransaccionService:
 
     @classmethod
     def crear_transaccion(
-        cls,
-        db: Session,
-        data: TransaccionCreate,
-        id_cuenta_gasto: int = None
+    cls,
+    db: Session,
+    data: TransaccionCreate,
+    id_cuenta_gasto: int = None,
+    forma_pago: str = "CAJA",
+    cuenta_pagocobro: str = None,
     ) -> Transaccion:
 
-        # 1. Guardar la transacción
+    # Determinar cuenta de dinero según forma de pago
+        if forma_pago == "BANCO":
+            cod_dinero = "1.1.2"
+        elif forma_pago == "CREDITO":
+            cod_dinero = "1.1.3" if data.tipo == "VENTA" else "2.1.1"
+        else:
+            cod_dinero = "1.1.1"
+        cuenta_dinero = cls._obtener_cuenta(db, cod_dinero)
+
+    # 1. Guardar la transacción
         tx = Transaccion(
-            idperiodo     = data.idperiodo,
-            fecha         = data.fecha,
-            tipo          = data.tipo,
-            descripcion   = data.descripcion,
-            monto_base    = data.monto_base,
-            iva           = data.iva,
-            documento_ref = data.documento_ref,
+        idperiodo     = data.idperiodo,
+        fecha         = data.fecha,
+        tipo          = data.tipo,
+        descripcion   = data.descripcion,
+        monto_base    = data.monto_base,
+        iva           = data.iva,
+        documento_ref = data.documento_ref,
         )
         db.add(tx)
         db.flush()
 
         total = float(data.monto_base) + float(data.iva)
 
-        # 2. Guardar detalles si los hay
+    # 2. Guardar detalles si los hay
         for det in data.detalles:
             d = DetalleTransaccion(
-                idtransaccion   = tx.idtransaccion,
-                idproducto      = det.idproducto,
-                descripcion     = det.descripcion,
-                cantidad        = det.cantidad,
-                precio_unitario = det.precio_unitario,
+            idtransaccion   = tx.idtransaccion,
+            idproducto      = det.idproducto,
+            descripcion     = det.descripcion,
+            cantidad        = det.cantidad,
+            precio_unitario = det.precio_unitario,
             )
             db.add(d)
 
-        # 3. Crear partida del libro diario
+    # 3. Crear partida del libro diario
         num = cls._siguiente_numero_partida(db, data.idperiodo)
         partida = PartidaDiaria(
-            idtransaccion  = tx.idtransaccion,
-            numero_partida = num,
-            fecha          = data.fecha,
-            concepto       = data.descripcion,
-            tipo_partida   = "NORMAL",
+        idtransaccion  = tx.idtransaccion,
+        numero_partida = num,
+        fecha          = data.fecha,
+        concepto       = data.descripcion,
+        tipo_partida   = "NORMAL",
         )
         db.add(partida)
         db.flush()
 
-        # 4. Generar partida doble según tipo
+    # 4. Generar partida doble según tipo
         if data.tipo == "VENTA":
-            caja    = cls._obtener_cuenta(db, "1.1.1")
             ventas  = cls._obtener_cuenta(db, "4.1.1")
             iva_deb = cls._obtener_cuenta(db, "2.1.2")
-            cls._agregar_linea(db, partida, caja,    debe=total)
-            cls._agregar_linea(db, partida, ventas,  haber=float(data.monto_base))
-            cls._agregar_linea(db, partida, iva_deb, haber=float(data.iva))
+            cls._agregar_linea(db, partida, cuenta_dinero, debe=total)
+            cls._agregar_linea(db, partida, ventas,        haber=float(data.monto_base))
+            cls._agregar_linea(db, partida, iva_deb,       haber=float(data.iva))
 
         elif data.tipo == "COMPRA":
             inventario = cls._obtener_cuenta(db, "1.1.4")
             iva_cred   = cls._obtener_cuenta(db, "1.1.5")
-            cxp        = cls._obtener_cuenta(db, "2.1.1")
-            cls._agregar_linea(db, partida, inventario, debe=float(data.monto_base))
-            cls._agregar_linea(db, partida, iva_cred,   debe=float(data.iva))
-            cls._agregar_linea(db, partida, cxp,        haber=total)
+            cls._agregar_linea(db, partida, inventario,    debe=float(data.monto_base))
+            cls._agregar_linea(db, partida, iva_cred,      debe=float(data.iva))
+            cls._agregar_linea(db, partida, cuenta_dinero, haber=total)
 
         elif data.tipo == "GASTO":
             if not id_cuenta_gasto:
@@ -108,22 +117,25 @@ class TransaccionService:
             if not cuenta_gasto:
                 raise ValueError(f"Cuenta de gasto {id_cuenta_gasto} no encontrada")
             iva_cred = cls._obtener_cuenta(db, "1.1.5")
-            caja     = cls._obtener_cuenta(db, "1.1.1")
-            cls._agregar_linea(db, partida, cuenta_gasto, debe=float(data.monto_base))
-            cls._agregar_linea(db, partida, iva_cred,     debe=float(data.iva))
-            cls._agregar_linea(db, partida, caja,         haber=total)
+            cls._agregar_linea(db, partida, cuenta_gasto,  debe=float(data.monto_base))
+            cls._agregar_linea(db, partida, iva_cred,      debe=float(data.iva))
+            cls._agregar_linea(db, partida, cuenta_dinero, haber=total)
 
         elif data.tipo == "PAGO":
-            cxp  = cls._obtener_cuenta(db, "2.1.1")
-            caja = cls._obtener_cuenta(db, "1.1.1")
-            cls._agregar_linea(db, partida, cxp,  debe=total)
-            cls._agregar_linea(db, partida, caja, haber=total)
+            if cuenta_pagocobro:
+                cxp = cls._obtener_cuenta(db, cuenta_pagocobro)
+            else:
+                cxp = cls._obtener_cuenta(db, "2.1.1")
+            cls._agregar_linea(db, partida, cxp,           debe=total)
+            cls._agregar_linea(db, partida, cuenta_dinero, haber=total)
 
         elif data.tipo == "COBRO":
-            caja = cls._obtener_cuenta(db, "1.1.1")
-            cxc  = cls._obtener_cuenta(db, "1.1.3")
-            cls._agregar_linea(db, partida, caja, debe=total)
-            cls._agregar_linea(db, partida, cxc,  haber=total)
+            if cuenta_pagocobro:
+                cxc = cls._obtener_cuenta(db, cuenta_pagocobro)
+        else:
+            cxc = cls._obtener_cuenta(db, "1.1.3")
+        cls._agregar_linea(db, partida, cxc,           debe=total)
+        cls._agregar_linea(db, partida, cuenta_dinero, haber=total)
 
         db.commit()
         db.refresh(tx)

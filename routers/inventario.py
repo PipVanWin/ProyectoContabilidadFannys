@@ -13,6 +13,9 @@ router = APIRouter()
 BASE_DIR = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
+MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio",
+         "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
+
 @router.get("/")
 def inventario(request: Request, db: Session = Depends(get_db)):
     empresa = db.query(Empresa).first()
@@ -36,11 +39,51 @@ def inventario(request: Request, db: Session = Depends(get_db)):
             "insumos":     insumos,
             "activos":     activos,
             "total_items": len(todos) + len(activos),
-            "periodo":     f"MAY-{periodo.anio}" if periodo else "—",
+            "periodo": f"{MESES[periodo.mes]}-{periodo.anio}" if periodo else "—",
             "estado":      periodo.estado if periodo else "—",
             "active":      "inventario",
         }
     )
+
+@router.get("/productos")
+def listar_productos(db: Session = Depends(get_db)):
+    empresa = db.query(Empresa).first()
+    productos = db.query(InventarioProducto).filter_by(
+        id_empresa=empresa.id_empresa, activo=True
+    ).order_by(InventarioProducto.nombre).all()
+    return [
+        {"id": p.id, "codigo": p.codigo, "nombre": p.nombre,
+         "precio_venta": float(p.precio_venta), "categoria": p.categoria}
+        for p in productos
+    ]
+
+@router.get("/productos/venta")
+def productos_venta(db: Session = Depends(get_db)):
+    empresa = db.query(Empresa).first()
+    productos = db.query(InventarioProducto).filter(
+        InventarioProducto.id_empresa == empresa.id_empresa,
+        InventarioProducto.activo == True,
+        InventarioProducto.categoria != "Insumo"
+    ).order_by(InventarioProducto.nombre).all()
+    return [
+        {"id": p.id, "codigo": p.codigo, "nombre": p.nombre,
+         "precio_venta": float(p.precio_venta), "categoria": p.categoria}
+        for p in productos
+    ]
+
+@router.get("/productos/compra")
+def productos_compra(db: Session = Depends(get_db)):
+    empresa = db.query(Empresa).first()
+    productos = db.query(InventarioProducto).filter(
+        InventarioProducto.id_empresa == empresa.id_empresa,
+        InventarioProducto.activo == True,
+        InventarioProducto.categoria == "Insumo"
+    ).order_by(InventarioProducto.nombre).all()
+    return [
+        {"id": p.id, "codigo": p.codigo, "nombre": p.nombre,
+         "precio_venta": float(p.costo_unitario), "categoria": p.categoria}
+        for p in productos
+    ]
 
 @router.post("/nuevo")
 def nuevo_item(datos: dict, db: Session = Depends(get_db)):

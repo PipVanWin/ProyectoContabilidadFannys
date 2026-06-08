@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Historial de Períodos{% endblock %}
+
+{% block content %}
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-title">Historial de Períodos</span>
+    <span class="topbar-path">/ {{ periodos|length }} períodos registrados</span>
+  </div>
+  <div class="topbar-actions" style="display:flex; gap:8px; align-items:center;">
+    <select id="sel-mes" class="form-input" style="width:130px;">
+      <option value="1">Enero</option>
+      <option value="2">Febrero</option>
+      <option value="3">Marzo</option>
+      <option value="4">Abril</option>
+      <option value="5">Mayo</option>
+      <option value="6">Junio</option>
+      <option value="7">Julio</option>
+      <option value="8">Agosto</option>
+      <option value="9">Septiembre</option>
+      <option value="10">Octubre</option>
+      <option value="11">Noviembre</option>
+      <option value="12">Diciembre</option>
+    </select>
+    <input id="sel-anio" class="form-input" type="number" value="{{ anio_actual }}"
+           style="width:80px;" min="2020" max="2099">
+    <button class="btn btn-accent" onclick="nuevoPeriodo()">
+      <i class="ti ti-plus"></i> Nuevo período
+    </button>
+  </div>
+</header>
+
+<div class="content">
+  <div class="tbl-head" style="grid-template-columns: 1fr 90px 130px 130px 130px 80px 200px;">
+    <div class="th">Período</div>
+    <div class="th">Estado</div>
+    <div class="th r">Ingresos (Q)</div>
+    <div class="th r">Gastos (Q)</div>
+    <div class="th r">Utilidad (Q)</div>
+    <div class="th"></div>
+    <div class="th">Reportes</div>
+  </div>
+  
+
+  {% for p in periodos %}
+  <div class="inv-row">
+    <div class="inv-grid" style="grid-template-columns: 1fr 90px 130px 130px 130px 80px 200px;">
+      <div class="l-cell" style="font-weight:500">{{ p.nombre }}</div>
+      <div class="l-cell">
+        <span class="tag {% if p.estado == 'ABIERTO' %}tag-v{% else %}tag-p{% endif %}">
+          {{ p.estado }}
+        </span>
+      </div>
+      <div class="l-cell mono" style="justify-content:flex-end; color:var(--green)">
+        {{ '%.2f'|format(p.ingresos) }}
+      </div>
+      <div class="l-cell mono" style="justify-content:flex-end; color:var(--red)">
+        {{ '%.2f'|format(p.gastos) }}
+      </div>
+      <div class="l-cell mono" style="justify-content:flex-end; font-weight:600;">
+        {% if p.utilidad >= 0 %}
+          <span style="color:var(--green)">{{ '%.2f'|format(p.utilidad) }}</span>
+        {% else %}
+          <span style="color:var(--red)">{{ '%.2f'|format(p.utilidad) }}</span>
+        {% endif %}
+      </div>
+      <div class="l-cell" style="justify-content:center;">
+        <canvas id="dona-{{ p.idperiodo }}" width="60" height="60"></canvas>
+      </div>
+      <div class="l-cell" style="gap:4px; flex-wrap:wrap;">
+        <a href="/reportes/libro-diario?idperiodo={{ p.idperiodo }}"
+           class="btn" style="font-size:10px; padding:3px 7px;">Diario</a>
+        <a href="/reportes/libro-mayor?idperiodo={{ p.idperiodo }}"
+           class="btn" style="font-size:10px; padding:3px 7px;">Mayor</a>
+        <a href="/reportes/estado-resultados?idperiodo={{ p.idperiodo }}"
+           class="btn" style="font-size:10px; padding:3px 7px;">Resultados</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+async function nuevoPeriodo() {
+  const mes  = parseInt(document.getElementById('sel-mes').value);
+  const anio = parseInt(document.getElementById('sel-anio').value);
+  const meses = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio",
+                 "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  if (!confirm(`¿Abrir nuevo período ${meses[mes]}-${anio}?`)) return;
+
+  const res  = await fetch('/historial/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mes, anio })
+  });
+  const data = await res.json();
+  if (res.ok && data.ok) {
+    alert('✓ ' + data.mensaje);
+    location.reload();
+  } else {
+    alert('Error: ' + (data.detail || 'Intenta de nuevo'));
+  }
+}
+
+const datos = [
+  {% for p in periodos %}
+  { id: {{ p.idperiodo }}, ingresos: {{ "%.2f"|format(p.ingresos) }}, gastos: {{ "%.2f"|format(p.gastos) }} },
+  {% endfor %}
+];
+
+datos.forEach(p => {
+  const canvas = document.getElementById('dona-' + p.id);
+  if (!canvas) return;
+  new Chart(canvas.getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Ingresos', 'Gastos'],
+      datasets: [{
+        data: [p.ingresos, p.gastos],
+        backgroundColor: ['#16a34a', '#dc2626'],
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      cutout: '60%',
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` Q ${parseFloat(c.raw).toFixed(2)}` } }
+      }
+    }
+  });
+});
+</script>
+{% endblock %}

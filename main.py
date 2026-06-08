@@ -12,9 +12,9 @@ from models.models import Transaccion, PartidaDiaria, PeriodoContable, Empresa, 
 from fastapi import FastAPI, Request, Depends
 
 
-from routers import empresa, inventario, transacciones, reportes, cierre
+from routers import empresa, inventario, transacciones, reportes, cierre, historial
 
-# ── Crear la aplicación ────────────────────────────────────────
+# ── Crear la aplicación 
 app = FastAPI(
     title="Sistema Contable — Fannys Express",
     description="Software contable para restaurante guatemalteco. "
@@ -25,11 +25,11 @@ app = FastAPI(
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-# ── Archivos estáticos (CSS, JS) ───────────────────────────────
+# Archivos estáticos (CSS, JS) 
 # Todo lo que esté en /static/ se sirve directamente al navegador
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# ── Plantillas HTML (Jinja2) ───────────────────────────────────
+# Plantillas HTML (Jinja2) 
 # Los routers usan esto para renderizar las páginas
 templates = Jinja2Templates(directory="templates")
 
@@ -38,13 +38,22 @@ app.include_router(inventario.router,    prefix="/inventario",    tags=["Inventa
 app.include_router(transacciones.router, prefix="/transacciones", tags=["Transacciones"])
 app.include_router(reportes.router,      prefix="/reportes",      tags=["Reportes"])
 app.include_router(cierre.router,        prefix="/cierre",        tags=["Cierre"])
+app.include_router(historial.router, prefix="/historial")
+
+@app.get("/debug-rutas")
+def debug_rutas():
+    from starlette.routing import Route
+    return [{"path": r.path, "methods": list(r.methods)} 
+            for r in app.routes if isinstance(r, Route)]
 
 
-# ── Ruta raíz ─────────────────────────────────────────────────
+# ── Ruta raíz 
 @app.get("/")
 def dashboard(request: Request, db: Session = Depends(get_db)):
     empresa_obj = db.query(Empresa).first()
     periodo     = db.query(PeriodoContable).filter_by(estado="ABIERTO").first()
+    MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio",
+         "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
     if not periodo:
         return templates.TemplateResponse(
@@ -98,7 +107,7 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         request=request,
         name="dashboard.html",
         context={
-            "periodo":          f"MAY-{periodo.anio}",
+            "periodo": f"{MESES[periodo.mes]}-{periodo.anio}",
             "estado":           periodo.estado,
             "total_ventas":     float(total_ventas),
             "total_gastos":     float(total_gastos),

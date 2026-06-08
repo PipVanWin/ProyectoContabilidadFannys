@@ -176,4 +176,58 @@
   </div>
 </footer>
 
+{% block scripts %}
+<script>
+// Filtros
+document.querySelectorAll('.filter-btn[data-filtro]').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.filter-btn[data-filtro]').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    const filtro = this.dataset.filtro;
+    document.querySelectorAll('.asiento').forEach(a => {
+      a.style.display = (filtro === 'todos' || a.dataset.tipo === filtro) ? '' : 'none';
+    });
+    calcularTotales();
+  });
+});
+
+// Búsqueda
+document.querySelector('.search-box input').addEventListener('input', function() {
+  const q = this.value.toLowerCase();
+  document.querySelectorAll('.asiento').forEach(a => {
+    a.style.display = a.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+  calcularTotales();
+});
+
+function calcularTotales() {
+  let debe = 0, haber = 0;
+  document.querySelectorAll('.asiento').forEach(asiento => {
+    if (asiento.style.display === 'none') return;
+    asiento.querySelectorAll('.l-cell.mono[data-monto]').forEach(cell => {
+      const monto = parseFloat(cell.dataset.monto) || 0;
+      if (cell.classList.contains('monto-debe'))  debe  += monto;
+      if (cell.classList.contains('monto-haber')) haber += monto;
+    });
+  });
+
+  const diff = Math.abs(debe - haber);
+  document.getElementById('total-debe').textContent  = debe.toFixed(2);
+  document.getElementById('total-haber').textContent = haber.toFixed(2);
+  document.getElementById('diferencia').textContent  = diff.toFixed(2);
+
+  const badge  = document.getElementById('badge-cuadre');
+  const dot    = badge.querySelector('.cuadre-dot');
+  const cuadra = diff < 0.01;
+  badge.style.background  = cuadra ? 'var(--green-bg, #f0fdf4)' : 'var(--red-bg, #fef2f2)';
+  badge.style.color       = cuadra ? 'var(--green, #16a34a)'    : 'var(--red, #dc2626)';
+  dot.style.background    = cuadra ? 'var(--green, #16a34a)'    : 'var(--red, #dc2626)';
+  badge.childNodes[badge.childNodes.length - 1].textContent = cuadra ? ' CUADRADO' : ' DESCUADRADO';
+}
+
+calcularTotales();
+</script>
+{% endblock %}
+
+
 {% endblock %}

@@ -32,12 +32,13 @@
       </div>
     </div>
 
-    <!-- RESULTADO (oculto hasta ejecutar) -->
+    <!-- RESULTADO -->
     <div id="resultado" style="display:none;" class="panel" style="margin-bottom:12px;">
       <div class="panel-header">
         <span class="panel-title">Resultado del cierre</span>
       </div>
       <div class="modal-body" id="resultado-body"></div>
+      <canvas id="grafica-cierre" style="max-width:300px; margin:16px auto; display:block;"></canvas>
     </div>
 
     <!-- BOTÓN -->
@@ -48,8 +49,11 @@
       </button>
     </div>
     {% else %}
-    <div style="padding:12px; background:var(--surface-2); border:1px solid var(--line); font-size:12px; color:var(--ink-3); text-align:center;">
-      Este período ya está cerrado.
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--surface-2); border:1px solid var(--line);">
+      <span style="font-size:12px; color:var(--ink-3)">Este período ya está cerrado.</span>
+      <a href="/historial/" class="btn btn-accent">
+        <i class="ti ti-history"></i> Ver historial y abrir nuevo período
+      </a>
     </div>
     {% endif %}
 
@@ -59,6 +63,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 const IDPERIODO = {{ idperiodo or 'null' }};
 
@@ -90,6 +95,31 @@ async function ejecutarCierre() {
     `;
     document.getElementById('resultado').style.display = '';
     btn.innerHTML = '<i class="ti ti-check"></i> Período cerrado';
+
+    // Gráfica dona — dentro del if, después de mostrar resultado
+    const ctx = document.getElementById('grafica-cierre').getContext('2d');
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Ingresos', 'Gastos'],
+        datasets: [{
+          data: [
+            data.resumen.find(p => p.paso === 2)?.monto || 0,
+            data.resumen.find(p => p.paso === 3)?.monto || 0,
+          ],
+          backgroundColor: ['#16a34a', '#dc2626'],
+          borderWidth: 0,
+        }]
+      },
+      options: {
+        cutout: '65%',
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: { callbacks: { label: c => ` Q ${parseFloat(c.raw).toFixed(2)}` } }
+        }
+      }
+    });
+
   } else {
     alert('Error: ' + (data.detail || 'Intenta de nuevo'));
     btn.disabled = false;
