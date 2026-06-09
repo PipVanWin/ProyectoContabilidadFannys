@@ -1,112 +1,102 @@
 """
-Controlador HTTP para la gestión de la empresa y períodos contables.
+Controlador HTTP para el módulo de Cierre Contable Mensual.
 
-Expone endpoints para consultar los datos fiscales de Fannys Express,
-listar y crear períodos contables, y consultar el catálogo completo
-de cuentas contables del sistema.
+Al ejecutarse, dispara automáticamente el proceso completo de
+corte mensual en el siguiente orden:
+  1. Regularización del IVA (Débito vs Crédito Fiscal)
+  2. Cierre de ingresos
+  3. Cierre de gastos
+  4. Cierre a capital
+
+Toda la lógica contable del cierre vive en services/cierre.py.
+Este router solo valida el estado del período y delega la ejecución.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
 from sqlalchemy.orm import Session
 from database import get_db
-from models.models import Empresa, PeriodoContable
+from models.models import PeriodoContable
+from services.cierre import ejecutar_cierre_mensual
 
 router = APIRouter()
+BASE_DIR  = Path(__file__).resolve().parent.parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+
+# Lista de meses
+MESES = ["","Enero","Febrero","Marzo","Abril","Mayo","Junio",
+         "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"]
 
 
 @router.get("/")
-def obtener_empresa(db: Session = Depends(get_db)):
+def cierre_page(request: Request, db: Session = Depends(get_db)):
     """
-    Retorna los datos fiscales de la empresa (Fannys Express).
+    Muestra la página del módulo de cierre contable.
 
-    Consulta el único registro de empresa registrado en el sistema.
-    Incluye nombre comercial, NIT, dirección, municipio y departamento.
+    Carga el período activo (estado='ABIERTO') para mostrar cuál
+    es el período que está próximo a cerrarse. Si no hay período
+    abierto, usa el más reciente como referencia.
 
     Args:
+        request (Request): Objeto de solicitud HTTP.
+        db (Session): Sesión de base de datos inyectada por FastAPI.
+
+    Returns:
+        TemplateResponse: Renderiza 'cierre.html' con el nombre,
+        estado e ID del período activo para confirmar el cierre.
+    """
+    periodo = (
+        db.query(PeriodoContable).filter_by(estado="ABIERTO").first()
+    ) or (
+        db.query(PeriodoContable)
+        .order_by(PeriodoContable.anio.desc(), PeriodoContable.mes.desc())
+        .first()
+    )
+    return templates.TemplateResponse(
+        request=request,
+        name="cierre.html",
+        context={
+            "periodo":   f"{MESES[periodo.mes]}-{periodo.anio}" if periodo else "—",
+            "estado":    periodo.estado if periodo else "—",
+            "idperiodo": periodo.idperiodo if periodo else None,
+            "active":    "cierre",
+        }
+    )
+
+
+@router.post("/{idperiodo}")
+def cerrar_periodo(idperiodo: int, db: Session = Depends(get_db)):
+    """
+    Ejecuta el cierre contable completo del período indicado.
+
+    Valida que el período exista y esté en estado 'ABIERTO' antes
+    de ejecutar el proceso. Una vez validado, delega toda la lógica
+    contable a ejecutar_cierre_mensual() en services/cierre.py, que
+    genera automáticamente las partidas de:
+      - Regularización del IVA
+      - Cierre de ingresos
+      - Cierre de gastos
+      - Cierre a capital
+
+    El período queda en estado 'CERRADO' al finalizar el proceso
+    y no puede recibir nuevas transacciones.
+
+    Args:
+        idperiodo (int): ID del período contable a cerrar.
         db (Session): Sesión de base de datos inyectada por FastAPI.
 
     Raises:
-        HTTPException (404): Si no existe ninguna empresa registrada.
+        HTTPException (404): Si el período no existe.
+        HTTPException (400): Si el período ya está cerrado.
 
     Returns:
-        Empresa: Objeto ORM con todos los datos fiscales de la empresa.
+        dict: Resultado del cierre generado por ejecutar_cierre_mensual().
     """
-    empresa = db.query(Empresa).first()
-    if not empresa:
-        raise HTTPException(status_code=404, detail="Empresa no encontrada")
-    return empresa
+    periodo = db.query(PeriodoContable).get(idperiodo)
+    if not periodo:
+        raise HTTPException(status_code=404, detail="Período no encontrado")
+    if periodo.estado == "CERRADO":
+        raise HTTPException(status_code=400, detail="El período ya está cerrado")
 
-
-@router.get("/periodos")
-def listar_periodos(db: Session = Depends(get_db)):
-    """
-    Lista todos los períodos contables registrados en el sistema.
-
-    Retorna todos los períodos sin filtrar, incluyendo tanto los
-    períodos abiertos como los cerrados.
-
-    Args:
-        db (Session): Sesión de base de datos inyectada por FastAPI.
-
-    Returns:
-        list[PeriodoContable]: Lista completa de períodos contables.
-    """
-    return db.query(PeriodoContable).all()
-
-
-@router.get("/cuentas")
-def listar_cuentas(db: Session = Depends(get_db)):
-    """
-    Retorna el catálogo completo de cuentas contables del sistema.
-
-    Lista todas las cuentas del plan contable ordenadas por código,
-    incluyendo su tipo (Activo, Pasivo, Capital, Ingreso, Gasto, etc.)
-    y nivel jerárquico dentro del plan de cuentas.
-
-    Args:
-        db (Session): Sesión de base de datos inyectada por FastAPI.
-
-    Returns:
-        list[dict]: Lista de cuentas con id, codigo, nombre, tipo y nivel.
-    """
-    from models.models import CuentaContable
-    cuentas = db.query(CuentaContable).order_by(CuentaContable.codigo).all()
-    return [
-        {"id": c.id, "codigo": c.codigo, "nombre": c.nombre,
-         "tipo": c.tipo, "nivel": c.nivel}
-        for c in cuentas
-    ]
-
-
-@router.post("/periodos")
-def crear_periodo(mes: int, anio: int, db: Session = Depends(get_db)):
-    """
-    Abre un nuevo período contable para el mes y año indicados.
-
-    Verifica que no exista ya un período para esa combinación
-    mes/año de la empresa antes de crearlo. El nuevo período
-    queda en estado 'ABIERTO' listo para recibir transacciones.
-
-    Args:
-        mes (int): Número del mes del período (1-12).
-        anio (int): Año del período (ej. 2025).
-        db (Session): Sesión de base de datos inyectada por FastAPI.
-
-    Raises:
-        HTTPException (400): Si ya existe un período para ese mes y año.
-
-    Returns:
-        PeriodoContable: El nuevo período contable creado y confirmado.
-    """
-    empresa = db.query(Empresa).first()
-    existente = db.query(PeriodoContable).filter_by(
-        id_empresa=empresa.id_empresa, mes=mes, anio=anio
-    ).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="El período ya existe")
-
-    periodo = PeriodoContable(id_empresa=empresa.id_empresa, mes=mes, anio=anio)
-    db.add(periodo)
-    db.commit()
-    db.refresh(periodo)
-    return periodo
+    return ejecutar_cierre_mensual(periodo, db)
